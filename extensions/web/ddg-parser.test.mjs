@@ -74,4 +74,8 @@ test("relaxedSearchQueries: removes quotes and natural-language filler", () => {
     ),
     ["1-800 Contacts Draper Utah Glassdoor Mobile Phone Discount"],
   );
+  assert.deepEqual(
+    relaxedSearchQueries("please find API docs site:nodejs.org"),
+    ["API docs site:nodejs.org"],
+  );
 });

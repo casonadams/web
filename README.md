@@ -29,7 +29,8 @@ pi -e git:git@github.com:casonadams/web.git
 - **`websearch`** keeps the proven
   `lynx -dump -nolist https://lite.duckduckgo.com/lite/` path as its primary
   provider. Results are normalized, deduplicated, and annotated with hostname,
-  provider, and useful content hints. GitHub `blob` URLs are converted to raw
+  provider, and useful content hints. Explicit `site:` constraints are enforced
+  across every provider. GitHub `blob` URLs are converted to raw
   content URLs when direct fetching is preferable. If DuckDuckGo returns its
   error page, the tool retries conservative query variants with quotes or
   natural-language filler removed. If it still returns fewer than the requested

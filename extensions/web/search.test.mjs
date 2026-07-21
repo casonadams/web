@@ -39,6 +39,59 @@ test("searchWeb: propagates an already-aborted caller signal", async () => {
     (error) => error === reason,
   );
 });
+test("searchWeb: does not relax an explicit no-results response", async () => {
+  const previousMwmblUrl = config.mwmblUrl;
+  const previousAllowPrivateNetwork = config.allowPrivateNetwork;
+  config.mwmblUrl = "http://127.0.0.1/search";
+  config.allowPrivateNetwork = false;
+  let calls = 0;
+  const execute = async () => {
+    calls += 1;
+    return {
+      code: 0,
+      killed: false,
+      stdout: 'No results found for "zzqv-no-such-result"',
+      stderr: "",
+    };
+  };
+  try {
+    await assert.rejects(
+      searchWeb({}, '"zzqv-no-such-result"', 1, undefined, execute),
+    );
+    assert.equal(calls, 1);
+  } finally {
+    config.mwmblUrl = previousMwmblUrl;
+    config.allowPrivateNetwork = previousAllowPrivateNetwork;
+  }
+});
+test("searchWeb: relaxes queries only after an error response", async () => {
+  let calls = 0;
+  const execute = async () => {
+    calls += 1;
+    return {
+      code: 0,
+      killed: false,
+      stdout:
+        calls === 1
+          ? "DuckDuckGo could not complete this search"
+          : [
+              "   1.  Example result",
+              "       A useful result snippet long enough to pass the configured filter.",
+              "       example.com/result",
+            ].join("\n"),
+      stderr: "",
+    };
+  };
+  const response = await searchWeb(
+    {},
+    'example "quoted phrase"',
+    1,
+    undefined,
+    execute,
+  );
+  assert.equal(calls, 2);
+  assert.equal(response.results[0]?.url, "https://example.com/result");
+});
 test("lynxDump: preserves usable stdout from a nonzero exit", async () => {
   const execute = async () => ({
     code: 1,

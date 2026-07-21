@@ -4,8 +4,8 @@ function cleanQuery(query: string): string {
 
 /**
  * Build conservative fallback queries for search-engine error pages. The exact
- * query is always attempted first; these variants are used only when it yields
- * no parsed results.
+ * query is always attempted first; callers use these variants only when the
+ * search engine returns an unrecognized error response.
  */
 export function relaxedSearchQueries(query: string): string[] {
   const exact = cleanQuery(query);
@@ -15,7 +15,6 @@ export function relaxedSearchQueries(query: string): string[] {
       /\b(?:number of|how many|what is|please|find|search for|show me)\b/gi,
       " ",
     ),
-    exact.replace(/\bsite:([^\s]+)/gi, "$1"),
   ].map(cleanQuery);
 
   return [...new Set(candidates)].filter(

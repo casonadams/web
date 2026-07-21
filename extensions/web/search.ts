@@ -5,7 +5,11 @@ import { requestSignal } from "./http.ts";
 import { formatSearchResults } from "./logic.ts";
 import { type LynxExecutor, lynxDump } from "./lynx.ts";
 import { relaxedSearchQueries } from "./query-utils.ts";
-import { mergeResults, normalizeResults } from "./result-utils.ts";
+import {
+  filterResultsForQuery,
+  mergeResults,
+  normalizeResults,
+} from "./result-utils.ts";
 import {
   searchMarginalia,
   searchMwmbl,
@@ -27,28 +31,28 @@ async function searchDdg(
   lynxExecutor?: LynxExecutor,
 ): Promise<DdgResult[]> {
   const queries = [query, ...relaxedSearchQueries(query)];
-  let lastError: unknown;
   for (const candidate of queries) {
-    try {
-      const url = `${DDG_LITE}?q=${encodeURIComponent(candidate)}&kl=${encodeURIComponent(config.region)}`;
-      const output = await lynxDump(
-        pi,
-        url,
-        config.searchTimeout,
-        signal,
-        config.searchMaxBytes,
-        lynxExecutor,
-      );
-      const results = parseDdgLite(output, {
-        minSnippetChars: config.minSnippetChars,
-      });
-      if (results.length > 0) return results;
-    } catch (error) {
-      if (signal.aborted) throw signal.reason;
-      lastError = error;
+    const url = `${DDG_LITE}?q=${encodeURIComponent(candidate)}&kl=${encodeURIComponent(config.region)}`;
+    const output = await lynxDump(
+      pi,
+      url,
+      config.searchTimeout,
+      signal,
+      config.searchMaxBytes,
+      lynxExecutor,
+    );
+    const results = parseDdgLite(output, {
+      minSnippetChars: config.minSnippetChars,
+    });
+    if (results.length > 0) return results;
+    const unfilteredResults = parseDdgLite(output, { minSnippetChars: 0 });
+    if (
+      unfilteredResults.length > 0 ||
+      /\bNo results found for\b/i.test(output)
+    ) {
+      return [];
     }
   }
-  if (lastError) throw lastError;
   return [];
 }
 
@@ -105,7 +109,10 @@ export async function searchWeb(
         config.searchTimeout,
         operationSignal,
       );
-      const incoming = normalizeResults(await search(attemptSignal), engine);
+      const incoming = filterResultsForQuery(
+        normalizeResults(await search(attemptSignal), engine),
+        query,
+      );
       if (incoming.length === 0) {
         errors.push(`${engine}: no results`);
         continue;

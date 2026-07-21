@@ -79,9 +79,12 @@ test("normalizeResults: converts GitHub blob URLs to direct content", () => {
     "PDF site:github.com",
     10,
   );
-  assert.equal(ranked[0].url, result.url);
+  assert.deepEqual(
+    ranked.map((entry) => entry.url),
+    [result.url],
+  );
 });
-test("mergeResults: prioritizes exact site-filter matches", () => {
+test("mergeResults: excludes results outside site filters", () => {
   const results = normalizeResults(
     [
       { title: "Other", abstract: "", url: "https://other.test/page" },
@@ -93,6 +96,6 @@ test("mergeResults: prioritizes exact site-filter matches", () => {
     mergeResults([], results, "topic site:example.com/docs", 10).map(
       (result) => result.title,
     ),
-    ["Docs", "Other"],
+    ["Docs"],
   );
 });

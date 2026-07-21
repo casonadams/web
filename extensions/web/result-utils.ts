@@ -88,6 +88,18 @@ function matchesSite(hostname: string | undefined, domain: string): boolean {
   return normalized === domain || normalized.endsWith(`.${domain}`);
 }
 
+export function filterResultsForQuery(
+  results: DdgResult[],
+  query: string,
+): DdgResult[] {
+  const domain = siteDomain(query);
+  if (!domain) return results;
+  return results.filter((result) => {
+    const url = canonicalUrl(result.url);
+    return url ? matchesSite(url.hostname, domain) : false;
+  });
+}
+
 export function normalizeResults(
   results: DdgResult[],
   source: string,
@@ -114,7 +126,10 @@ export function mergeResults(
   limit: number,
 ): DdgResult[] {
   const byUrl = new Map<string, DdgResult>();
-  for (const result of [...current, ...incoming]) {
+  for (const result of filterResultsForQuery(
+    [...current, ...incoming],
+    query,
+  )) {
     const url = canonicalUrl(result.url);
     if (!url) continue;
     const key = dedupeKey(url);
@@ -127,14 +142,5 @@ export function mergeResults(
     }
   }
 
-  const results = [...byUrl.values()];
-  const domain = siteDomain(query);
-  if (domain) {
-    results.sort(
-      (left, right) =>
-        Number(matchesSite(right.hostname, domain)) -
-        Number(matchesSite(left.hostname, domain)),
-    );
-  }
-  return results.slice(0, limit);
+  return [...byUrl.values()].slice(0, limit);
 }
