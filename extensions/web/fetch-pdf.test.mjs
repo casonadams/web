@@ -73,6 +73,39 @@ test("fetchPage: limits concurrent PDF workers", async (t) => {
     config.pdfWorkerConcurrency = previousConcurrency;
   }
 });
+test("fetchPage: waits for PDF worker termination", async (t) => {
+  const pdf = textPdf("Await worker termination");
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "application/pdf");
+    response.end(pdf);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  const originalTerminate = Worker.prototype.terminate;
+  let terminationCompleted = false;
+  Worker.prototype.terminate = async function () {
+    const code = await originalTerminate.call(this);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    terminationCompleted = true;
+    return code;
+  };
+  try {
+    await fetchPage(
+      `http://127.0.0.1:${address.port}/await-termination.pdf`,
+      1,
+      20,
+    );
+    assert.equal(terminationCompleted, true);
+  } finally {
+    Worker.prototype.terminate = originalTerminate;
+  }
+});
+
 test("fetchPage: bounds PDF extraction time", async (t) => {
   const previousTimeout = config.extractionTimeout;
   config.extractionTimeout = 0.001;

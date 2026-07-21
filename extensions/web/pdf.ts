@@ -72,9 +72,13 @@ function runPdfWorker(bytes: Uint8Array, signal: AbortSignal): Promise<string> {
       settled = true;
       signal.removeEventListener("abort", onAbort);
       worker.removeAllListeners();
-      void worker.terminate();
-      if (error !== undefined) reject(error);
-      else resolve(text ?? "");
+      worker.terminate().then(
+        () => {
+          if (error !== undefined) reject(error);
+          else resolve(text ?? "");
+        },
+        (terminationError) => reject(error ?? terminationError),
+      );
     };
 
     signal.addEventListener("abort", onAbort, { once: true });
