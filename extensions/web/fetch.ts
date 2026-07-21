@@ -340,22 +340,31 @@ function resolveRelativeUrl(target: string, baseUrl: string): string {
 }
 
 function resolveMarkdownLinks(markdown: string, baseUrl: string): string {
-  let fenced = false;
+  let fence: { marker: string; length: number } | undefined;
   return markdown
     .split("\n")
     .map((line) => {
-      if (/^\s*(```|~~~)/.test(line)) {
-        fenced = !fenced;
+      const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/);
+      if (fenceMatch?.[1]) {
+        const marker = fenceMatch[1][0] ?? "";
+        if (!fence) {
+          fence = { marker, length: fenceMatch[1].length };
+        } else if (
+          marker === fence.marker &&
+          fenceMatch[1].length >= fence.length
+        ) {
+          fence = undefined;
+        }
         return line;
       }
-      if (fenced) return line;
+      if (fence) return line;
       const references = line.replace(
         /^(\s*\[[^\]]+\]:\s*)(\S+)(.*)$/,
         (_match, prefix: string, target: string, suffix: string) =>
           `${prefix}${resolveRelativeUrl(target, baseUrl)}${suffix}`,
       );
       return references.replace(
-        /(!?\[[^\]]*\]\()(<[^>]+>|[^)\s]+)([^)]*\))/g,
+        /(!?\[[^\]]*\]\()(<[^>]+>|(?:[^()\s]|\([^()]*\))+)([^)]*\))/g,
         (_match, prefix: string, rawTarget: string, suffix: string) => {
           const angled = rawTarget.startsWith("<") && rawTarget.endsWith(">");
           const target = angled ? rawTarget.slice(1, -1) : rawTarget;
@@ -518,7 +527,7 @@ function pageLines(
     selected.push(line);
     bytes += lineBytes;
   }
-  return { content: selected.join("\n").trim(), consumed: selected.length };
+  return { content: selected.join("\n"), consumed: selected.length };
 }
 
 async function fetchResource(

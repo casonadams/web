@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { config } from "./config.ts";
 import { parseDdgLite } from "./ddg-parser.ts";
 import { fetchPage } from "./fetch.ts";
+import { fetchBytes } from "./http.ts";
 import { lynxDump } from "./lynx.ts";
 import { parseMwmblResults } from "./mwmbl-parser.ts";
 import { relaxedSearchQueries } from "./query-utils.ts";
@@ -305,6 +306,45 @@ test("fetchPage: resolves relative Markdown links outside code fences", async (t
   assert.match(page.content, /\.\/leave-this-relative\.md/);
 });
 
+test("fetchPage: preserves links inside mixed Markdown fences", async (t) => {
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "text/markdown");
+    response.end(
+      [
+        "```md",
+        "~~~",
+        "[Example](./leave-this-relative.md)",
+        "```",
+        "[Guide](./guide.md)",
+        "[Parenthesized](./guide_(draft).md)",
+      ].join("\n"),
+    );
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const page = await fetchPage(
+    `http://127.0.0.1:${address.port}/docs/README.md`,
+    1,
+    30,
+  );
+  assert.match(page.content, /\[Example\]\(\.\/leave-this-relative\.md\)/);
+  assert.match(
+    page.content,
+    new RegExp(
+      `\\[Guide\\]\\(http://127\\.0\\.0\\.1:${address.port}/docs/guide\\.md\\)`,
+    ),
+  );
+  assert.match(
+    page.content,
+    new RegExp(
+      `\\[Parenthesized\\]\\(http://127\\.0\\.0\\.1:${address.port}/docs/guide_\\(draft\\)\\.md\\)`,
+    ),
+  );
+});
+
 test("fetchPage: formats RSS feeds and resolves entry links", async (t) => {
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "application/rss+xml");
@@ -437,6 +477,36 @@ test("fetchPage: rejects oversized non-PDF content from headers", async (t) => {
   );
 });
 
+test("fetchPage: cancels failed HTTP response bodies", async (t) => {
+  let responseClosed;
+  const closed = new Promise((resolve) => {
+    responseClosed = resolve;
+  });
+  const server = createServer((_request, response) => {
+    response.on("close", responseClosed);
+    response.writeHead(404, { "content-type": "text/plain" });
+    response.write("error body that remains open");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  await assert.rejects(
+    fetchPage(`http://127.0.0.1:${address.port}/missing`, 1, 20),
+    /HTTP 404/,
+  );
+  await Promise.race([
+    closed,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error("response body was not cancelled")),
+        500,
+      ),
+    ),
+  ]);
+});
+
 test("fetchPage: retries one transient HTTP failure", async (t) => {
   let requests = 0;
   const server = createServer((_request, response) => {
@@ -526,6 +596,20 @@ test("fetchPage: reuses a bounded extraction cache for pagination", async (t) =>
   assert.match(continuation.content, /^three\nfour/);
 });
 
+test("fetchPage: preserves indentation at page boundaries", async (t) => {
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "text/plain");
+    response.end("header\n  indented\ntail");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const page = await fetchPage(`http://127.0.0.1:${address.port}/indent`, 2, 1);
+  assert.match(page.content, /^ {2}indented\n/);
+});
+
 test("fetchPage: paginates plain text", async (t) => {
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "text/plain");
@@ -542,16 +626,24 @@ test("fetchPage: paginates plain text", async (t) => {
   assert.match(page.content, /^two\nthree/);
 });
 
-test("fetchPage: blocks private-network requests by default", async () => {
-  config.allowPrivateNetwork = false;
-  try {
-    await assert.rejects(
-      fetchPage("http://127.0.0.1/private", 1, 20),
-      /request blocked: .*non-public address/,
-    );
-  } finally {
-    config.allowPrivateNetwork = true;
-  }
+test("fetchBytes: blocks private-network requests by default", async () => {
+  await assert.rejects(
+    fetchBytes("http://127.0.0.1/private", {
+      timeoutSec: 1,
+      maxBytes: 1000,
+      allowPrivateNetwork: false,
+    }),
+    /request blocked: .*non-public address/,
+  );
+  await assert.rejects(
+    fetchBytes("http://localhost/private", {
+      timeoutSec: 1,
+      maxBytes: 1000,
+      allowPrivateNetwork: false,
+      retries: 0,
+    }),
+    /request blocked: .*non-public address/,
+  );
 });
 
 test("isHttpUrl: accepts only valid HTTP(S) URLs", () => {

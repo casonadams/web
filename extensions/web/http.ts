@@ -1,6 +1,8 @@
-import { lookup } from "node:dns/promises";
+import { lookup as lookupAsync } from "node:dns/promises";
+import type { LookupFunction } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import ipaddr from "ipaddr.js";
+import { Agent, fetch, type Response } from "undici";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
@@ -154,10 +156,7 @@ function isPublicAddress(address: string): boolean {
   return parsed.range() === "unicast";
 }
 
-async function assertAllowedUrl(
-  url: URL,
-  allowPrivateNetwork: boolean,
-): Promise<void> {
+function assertAllowedUrl(url: URL, allowPrivateNetwork: boolean): void {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("request blocked: only HTTP and HTTPS URLs are allowed");
   }
@@ -166,24 +165,50 @@ async function assertAllowedUrl(
       "request blocked: URLs containing credentials are not allowed",
     );
   }
-  if (allowPrivateNetwork) return;
-  if (url.hostname.toLowerCase() === "localhost") {
-    throw new Error("request blocked: private network host localhost");
-  }
-
-  let addresses: Array<{ address: string }>;
-  try {
-    addresses = await lookup(url.hostname, { all: true, verbatim: true });
-  } catch (error) {
-    throw networkError(error);
-  }
-  const blocked = addresses.find(({ address }) => !isPublicAddress(address));
-  if (blocked) {
-    throw new Error(
-      `request blocked: ${url.hostname} resolved to non-public address ${blocked.address}`,
-    );
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  if (
+    !allowPrivateNetwork &&
+    ipaddr.isValid(hostname) &&
+    !isPublicAddress(hostname)
+  ) {
+    throw new Error(`request blocked: ${url.hostname} is a non-public address`);
   }
 }
+
+const publicNetworkLookup: LookupFunction = (hostname, options, callback) => {
+  lookupAsync(hostname, {
+    all: true,
+    verbatim: true,
+    family: options.family,
+  }).then(
+    (addresses) => {
+      const blocked = addresses.find(
+        ({ address }) => !isPublicAddress(address),
+      );
+      if (blocked) {
+        callback(
+          new Error(
+            `request blocked: ${hostname} resolved to non-public address ${blocked.address}`,
+          ),
+          "",
+          0,
+        );
+        return;
+      }
+      const selected = addresses[0];
+      if (!selected) {
+        callback(
+          new Error(`request failed: ${hostname} resolved to no addresses`),
+          "",
+          0,
+        );
+        return;
+      }
+      callback(null, selected.address, selected.family);
+    },
+    (error) => callback(networkError(error), "", 0),
+  );
+};
 
 function retryDelay(response: Response | undefined, attempt: number): number {
   const retryAfter = response?.headers.get("retry-after");
@@ -205,7 +230,7 @@ function isRetryableStatus(status: number): boolean {
 
 async function fetchWithRetries(
   url: URL,
-  options: FetchTextOptions,
+  options: FetchTextOptions & { dispatcher?: Agent },
 ): Promise<Response> {
   const retries = Math.max(0, options.retries ?? 1);
   for (let attempt = 0; ; attempt += 1) {
@@ -214,6 +239,7 @@ async function fetchWithRetries(
       response = await fetch(url, {
         redirect: "manual",
         signal: requestSignal(options.timeoutSec, options.signal),
+        dispatcher: options.dispatcher,
         headers: {
           accept:
             "text/html,application/xhtml+xml,application/pdf,application/json,text/plain;q=0.9,*/*;q=0.1",
@@ -244,11 +270,11 @@ async function fetchWithRetries(
 
 async function fetchFollowingRedirects(
   rawUrl: string,
-  options: FetchTextOptions,
+  options: FetchTextOptions & { dispatcher?: Agent },
 ): Promise<Response> {
   let url = new URL(rawUrl);
   for (let redirects = 0; redirects <= 10; redirects += 1) {
-    await assertAllowedUrl(url, options.allowPrivateNetwork ?? false);
+    assertAllowedUrl(url, options.allowPrivateNetwork ?? false);
     const response = await fetchWithRetries(url, options);
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get("location");
@@ -263,18 +289,28 @@ export async function fetchBytes(
   url: string,
   options: FetchTextOptions,
 ): Promise<BinaryResponse> {
-  const response = await fetchFollowingRedirects(url, options);
+  const dispatcher = options.allowPrivateNetwork
+    ? undefined
+    : new Agent({ connect: { lookup: publicNetworkLookup } });
+  const requestOptions = { ...options, dispatcher };
+  try {
+    const response = await fetchFollowingRedirects(url, requestOptions);
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+    }
+
+    const contentType =
+      response.headers.get("content-type")?.toLowerCase() ?? "";
+    return {
+      body: await readLimitedBody(response, contentType, requestOptions),
+      contentType,
+      url: response.url,
+    };
+  } finally {
+    await dispatcher?.close();
   }
-
-  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-  return {
-    body: await readLimitedBody(response, contentType, options),
-    contentType,
-    url: response.url,
-  };
 }
 
 export async function fetchText(
