@@ -33,7 +33,12 @@ export function extractXml(body: string, baseUrl: string): string | null {
   const formatted = entries.map((entry, index) => {
     const title =
       entry.querySelector("title")?.textContent?.trim() || "Untitled";
-    const linkElement = entry.querySelector("link");
+    const linkElements = [...entry.querySelectorAll("link")];
+    const linkElement =
+      linkElements.find((element) => {
+        const rel = element.getAttribute("rel")?.trim().toLowerCase();
+        return !rel || rel.split(/\s+/).includes("alternate");
+      }) ?? linkElements[0];
     const rawLink =
       linkElement?.getAttribute("href") ||
       linkElement?.textContent?.trim() ||

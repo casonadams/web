@@ -52,6 +52,67 @@ test("fetchPage: cancels failed HTTP response bodies", async (t) => {
     ),
   ]);
 });
+test("fetchBytes: strips caller headers on cross-origin redirects", async (t) => {
+  let redirectedApiKey;
+  const target = createServer((request, response) => {
+    redirectedApiKey = request.headers["api-key"];
+    response.setHeader("content-type", "text/plain");
+    response.end("redirected");
+  });
+  await new Promise((resolve) => target.listen(0, "127.0.0.1", resolve));
+  t.after(() => target.close());
+  const targetAddress = target.address();
+  assert.notEqual(targetAddress, null);
+  assert.equal(typeof targetAddress, "object");
+
+  const source = createServer((_request, response) => {
+    response.writeHead(302, {
+      location: `http://127.0.0.1:${targetAddress.port}/target`,
+    });
+    response.end();
+  });
+  await new Promise((resolve) => source.listen(0, "127.0.0.1", resolve));
+  t.after(() => source.close());
+  const sourceAddress = source.address();
+  assert.notEqual(sourceAddress, null);
+  assert.equal(typeof sourceAddress, "object");
+
+  await fetchBytes(`http://127.0.0.1:${sourceAddress.port}/start`, {
+    timeoutSec: 1,
+    maxBytes: 1000,
+    allowPrivateNetwork: true,
+    retries: 0,
+    headers: { "api-key": "secret" },
+  });
+  assert.equal(redirectedApiKey, undefined);
+});
+test("fetchBytes: preserves caller headers on same-origin redirects", async (t) => {
+  let redirectedApiKey;
+  const server = createServer((request, response) => {
+    if (request.url === "/start") {
+      response.writeHead(302, { location: "/target" });
+      response.end();
+      return;
+    }
+    redirectedApiKey = request.headers["api-key"];
+    response.setHeader("content-type", "text/plain");
+    response.end("redirected");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+
+  await fetchBytes(`http://127.0.0.1:${address.port}/start`, {
+    timeoutSec: 1,
+    maxBytes: 1000,
+    allowPrivateNetwork: true,
+    retries: 0,
+    headers: { "api-key": "secret" },
+  });
+  assert.equal(redirectedApiKey, "secret");
+});
 test("fetchBytes: applies one timeout across redirect hops", async (t) => {
   const server = createServer((request, response) => {
     setTimeout(() => {

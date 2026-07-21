@@ -68,14 +68,19 @@ async function fetchFollowingRedirects(
   options: FetchTextOptions & { dispatcher?: Agent },
 ): Promise<Response> {
   let url = new URL(rawUrl);
+  let requestOptions = options;
   for (let redirects = 0; redirects <= 10; redirects += 1) {
-    assertAllowedUrl(url, options.allowPrivateNetwork ?? false);
-    const response = await fetchWithRetries(url, options);
+    assertAllowedUrl(url, requestOptions.allowPrivateNetwork ?? false);
+    const response = await fetchWithRetries(url, requestOptions);
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get("location");
     if (!location) return response;
     await response.body?.cancel();
-    url = new URL(location, url);
+    const nextUrl = new URL(location, url);
+    if (nextUrl.origin !== url.origin && requestOptions.headers) {
+      requestOptions = { ...requestOptions, headers: undefined };
+    }
+    url = nextUrl;
   }
   throw new Error("request failed: too many redirects");
 }

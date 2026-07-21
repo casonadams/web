@@ -3,7 +3,7 @@ import { config } from "./config.ts";
 import { type DdgResult, parseDdgLite } from "./ddg-parser.ts";
 import { requestSignal } from "./http.ts";
 import { formatSearchResults } from "./logic.ts";
-import { lynxDump } from "./lynx.ts";
+import { type LynxExecutor, lynxDump } from "./lynx.ts";
 import { relaxedSearchQueries } from "./query-utils.ts";
 import { mergeResults, normalizeResults } from "./result-utils.ts";
 import {
@@ -24,19 +24,27 @@ async function searchDdg(
   pi: ExtensionAPI,
   query: string,
   signal: AbortSignal,
+  lynxExecutor?: LynxExecutor,
 ): Promise<DdgResult[]> {
   const queries = [query, ...relaxedSearchQueries(query)];
   let lastError: unknown;
   for (const candidate of queries) {
     try {
       const url = `${DDG_LITE}?q=${encodeURIComponent(candidate)}&kl=${encodeURIComponent(config.region)}`;
-      const output = await lynxDump(pi, url, config.searchTimeout, signal);
+      const output = await lynxDump(
+        pi,
+        url,
+        config.searchTimeout,
+        signal,
+        config.searchMaxBytes,
+        lynxExecutor,
+      );
       const results = parseDdgLite(output, {
         minSnippetChars: config.minSnippetChars,
       });
       if (results.length > 0) return results;
     } catch (error) {
-      if (signal.aborted) throw error;
+      if (signal.aborted) throw signal.reason;
       lastError = error;
     }
   }
@@ -49,14 +57,16 @@ export async function searchWeb(
   query: string,
   limit: number,
   signal: AbortSignal | undefined,
+  lynxExecutor?: LynxExecutor,
 ): Promise<SearchResponse> {
+  signal?.throwIfAborted();
   const operationSignal = requestSignal(config.searchTotalTimeout, signal);
   const attempts: Array<
     [string, (attemptSignal: AbortSignal) => Promise<DdgResult[]>]
   > = [
     [
       "DuckDuckGo via lynx",
-      (attemptSignal) => searchDdg(pi, query, attemptSignal),
+      (attemptSignal) => searchDdg(pi, query, attemptSignal, lynxExecutor),
     ],
   ];
   if (config.searxngUrl) {
@@ -81,6 +91,7 @@ export async function searchWeb(
   const timeoutMessage = `search timed out after ${config.searchTotalTimeout}s`;
   let results: DdgResult[] = [];
   for (const [engine, search] of attempts) {
+    signal?.throwIfAborted();
     if (results.length >= limit) break;
     if (operationSignal.aborted) {
       if (results.length > 0) {
@@ -102,7 +113,7 @@ export async function searchWeb(
       engines.push(engine);
       results = mergeResults(results, incoming, query, limit);
     } catch (error) {
-      if (signal?.aborted) throw error;
+      if (signal?.aborted) throw signal.reason;
       if (operationSignal.aborted) {
         if (results.length > 0) {
           errors.push(timeoutMessage);

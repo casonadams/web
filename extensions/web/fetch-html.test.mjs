@@ -24,6 +24,24 @@ test("fetchPage: fetches and converts HTML without lynx", async (t) => {
   assert.match(page.content, /guide \[http:\/\/127\.0\.0\.1:\d+\/guide\]/);
   assert.doesNotMatch(page.content, /bad\(\)/);
 });
+test("fetchPage: extracts XHTML as HTML instead of returning markup", async (t) => {
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "application/xhtml+xml; charset=utf-8");
+    response.end(
+      '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>XHTML title</h1><p>Clean content <a href="/guide">guide</a>.</p><script>bad()</script></body></html>',
+    );
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const page = await fetchPage(`http://127.0.0.1:${address.port}/page`, 1, 20);
+  assert.equal(page.extraction, "full");
+  assert.match(page.content, /XHTML TITLE/);
+  assert.match(page.content, new RegExp(`${address.port}/guide`));
+  assert.doesNotMatch(page.content, /<html|<script|bad\(\)/);
+});
 test("fetchPage: respects HTML charset and base href", async (t) => {
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "text/html; charset=windows-1252");

@@ -9,19 +9,17 @@ test("searchWeb: applies an end-to-end provider deadline", async () => {
   const previousProviderTimeout = config.searchTimeout;
   config.searchTotalTimeout = 0.02;
   config.searchTimeout = 1;
-  const pi = {
-    exec: async (_command, _args, options) =>
-      new Promise((_resolve, reject) => {
-        options.signal.addEventListener(
-          "abort",
-          () => reject(options.signal.reason),
-          { once: true },
-        );
-      }),
-  };
+  const execute = async (_url, options) =>
+    new Promise((_resolve, reject) => {
+      options.signal.addEventListener(
+        "abort",
+        () => reject(options.signal.reason),
+        { once: true },
+      );
+    });
   try {
     await assert.rejects(
-      searchWeb(pi, "slow query", 1),
+      searchWeb({}, "slow query", 1, undefined, execute),
       /timed out after 0.02s/,
     );
   } finally {
@@ -29,14 +27,50 @@ test("searchWeb: applies an end-to-end provider deadline", async () => {
     config.searchTimeout = previousProviderTimeout;
   }
 });
-test("lynxDump: preserves usable stdout from a nonzero exit", async () => {
-  const pi = {
-    exec: async () => ({
-      code: 1,
-      killed: false,
-      stdout: "   1.  Usable result\n       snippet\n       example.com\n",
-      stderr: "transient warning",
-    }),
+test("searchWeb: propagates an already-aborted caller signal", async () => {
+  const reason = new Error("search cancelled by caller");
+  const controller = new AbortController();
+  controller.abort(reason);
+  const execute = async () => {
+    assert.fail("lynx should not run for an aborted search");
   };
-  assert.match(await lynxDump(pi, "https://example.com", 1), /Usable result/);
+  await assert.rejects(
+    searchWeb({}, "cancelled query", 1, controller.signal, execute),
+    (error) => error === reason,
+  );
+});
+test("lynxDump: preserves usable stdout from a nonzero exit", async () => {
+  const execute = async () => ({
+    code: 1,
+    killed: false,
+    stdout: "   1.  Usable result\n       snippet\n       example.com\n",
+    stderr: "transient warning",
+  });
+  assert.match(
+    await lynxDump(
+      {},
+      "https://example.com",
+      1,
+      undefined,
+      config.searchMaxBytes,
+      execute,
+    ),
+    /Usable result/,
+  );
+});
+test("lynxDump: rejects output larger than the configured limit", async () => {
+  const result = {
+    code: 0,
+    killed: false,
+    stdout: "12345",
+    stderr: "",
+  };
+  const execute = async (_url, options) => {
+    assert.equal(options.maxBytes, 4);
+    return result;
+  };
+  await assert.rejects(
+    lynxDump({}, "https://example.com", 1, undefined, 4, execute),
+    /exceeded the 4-byte limit/,
+  );
 });

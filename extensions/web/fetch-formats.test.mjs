@@ -77,6 +77,29 @@ test("fetchPage: preserves links inside mixed Markdown fences", async (t) => {
     ),
   );
 });
+test("fetchPage: prefers Atom alternate links over self links", async (t) => {
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "application/atom+xml");
+    response.end(
+      '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>Example Feed</title><entry><title>First post</title><link rel="self" href="/api/entries/1"/><link rel="alternate" href="/posts/1"/><summary>Useful summary.</summary></entry></feed>',
+    );
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const page = await fetchPage(
+    `http://127.0.0.1:${address.port}/feed.xml`,
+    1,
+    30,
+  );
+  assert.match(page.content, new RegExp(`${address.port}/posts/1`));
+  assert.doesNotMatch(
+    page.content,
+    new RegExp(`${address.port}/api/entries/1`),
+  );
+});
 test("fetchPage: formats RSS feeds and resolves entry links", async (t) => {
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "application/rss+xml");

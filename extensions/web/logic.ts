@@ -57,10 +57,15 @@ export function renderFetchResult(
   result: { details?: unknown },
   { isPartial }: { isPartial: boolean },
   theme: Theme,
+  context?: { isError?: boolean },
 ) {
   if (isPartial) return new Text(theme.fg("warning", "Fetching..."), 0, 0);
   const details = result.details as FetchResultDetails | undefined;
   const url = details?.sourceUrl;
+  if (context?.isError) {
+    const label = url ? `fetch failed ${url}` : "Fetch failed";
+    return new Text(theme.fg("error", label), 0, 0);
+  }
   if (!url) return new Text(theme.fg("warning", "No content"), 0, 0);
   const extraction = details.extraction ? ` (${details.extraction})` : "";
   const destination =

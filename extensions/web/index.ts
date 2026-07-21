@@ -98,43 +98,23 @@ export default function (pi: ExtensionAPI): void {
     renderResult: renderFetchResult,
     async execute(_toolCallId, params, signal) {
       if (!isHttpUrl(params.url)) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "Fetch blocked: only http and https URLs are allowed.",
-            },
-          ],
-          details: { sourceUrl: params.url } satisfies FetchResultDetails,
-        };
+        throw new Error("Fetch blocked: only http and https URLs are allowed.");
       }
-      try {
-        const { content, extraction, finalUrl } = await fetchPage(
-          params.url,
-          params.offset ?? 1,
-          params.limit ?? config.fetchLimit,
-          params.mode ?? "auto",
-          signal,
-        );
-        return {
-          content: [{ type: "text", text: content || "No content returned." }],
-          details: {
-            sourceUrl: params.url,
-            finalUrl,
-            extraction,
-          } satisfies FetchResultDetails,
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Fetch failed: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          details: { sourceUrl: params.url } satisfies FetchResultDetails,
-        };
-      }
+      const { content, extraction, finalUrl } = await fetchPage(
+        params.url,
+        params.offset ?? 1,
+        params.limit ?? config.fetchLimit,
+        params.mode ?? "auto",
+        signal,
+      );
+      return {
+        content: [{ type: "text", text: content || "No content returned." }],
+        details: {
+          sourceUrl: params.url,
+          finalUrl,
+          extraction,
+        } satisfies FetchResultDetails,
+      };
     },
   });
 }

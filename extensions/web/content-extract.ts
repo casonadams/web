@@ -53,20 +53,20 @@ export function responseToText(
     }
   }
   if (
-    contentType.includes("xml") ||
-    /^\s*<\?xml\b/i.test(body) ||
-    /^\s*<(?:rss|feed|urlset)\b/i.test(body)
-  ) {
-    const xml = extractXml(body, baseUrl);
-    return { text: xml ?? body.trim(), extraction: "xml" };
-  }
-  if (
     contentType.includes("html") ||
     contentType.includes("xhtml") ||
     /^\s*<!doctype html/i.test(body) ||
     /^\s*<html[\s>]/i.test(body)
   ) {
     return extractHtml(body, baseUrl, mode);
+  }
+  if (
+    contentType.includes("xml") ||
+    /^\s*<\?xml\b/i.test(body) ||
+    /^\s*<(?:rss|feed|urlset)\b/i.test(body)
+  ) {
+    const xml = extractXml(body, baseUrl);
+    return { text: xml ?? body.trim(), extraction: "xml" };
   }
   if (
     contentType &&
