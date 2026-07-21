@@ -71,7 +71,8 @@ Install the dependencies with `pnpm install`. `websearch` also requires `lynx`
 | `WEB_SEARCH_TOTAL_TIMEOUT` | `30` | End-to-end timeout for all search providers in seconds |
 | `WEB_SEARCH_MAX_BYTES` | `2000000` | Maximum search response size |
 | `WEB_FETCH_TIMEOUT` | `8` | End-to-end network timeout, including retries and redirects, in seconds |
-| `WEB_EXTRACTION_TIMEOUT` | `15` | PDF extraction timeout in seconds |
+| `WEB_EXTRACTION_TIMEOUT` | `15` | PDF extraction timeout in seconds, including queue time |
+| `WEB_PDF_WORKER_CONCURRENCY` | `2` | Maximum concurrent PDF workers (maximum 8) |
 | `WEB_FETCH_LIMIT` | `200` | Default lines returned by `webfetch` |
 | `WEB_FETCH_MAX_BYTES` | `5000000` | Maximum non-PDF response size |
 | `WEB_PDF_MAX_BYTES` | `20000000` | Maximum PDF response size |

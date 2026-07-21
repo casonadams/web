@@ -1,15 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { config } from "./config.ts";
 import { type DdgResult, parseDdgLite } from "./ddg-parser.ts";
-import { fetchText, requestSignal } from "./http.ts";
+import { requestSignal } from "./http.ts";
 import { formatSearchResults } from "./logic.ts";
 import { lynxDump } from "./lynx.ts";
-import { parseMwmblResults } from "./mwmbl-parser.ts";
 import { relaxedSearchQueries } from "./query-utils.ts";
 import { mergeResults, normalizeResults } from "./result-utils.ts";
+import {
+  searchMarginalia,
+  searchMwmbl,
+  searchSearxng,
+} from "./search-providers.ts";
 
 const DDG_LITE = "https://lite.duckduckgo.com/lite/";
-const MARGINALIA_API = "https://api2.marginalia-search.com/search";
 
 export interface SearchResponse {
   engine: string;
@@ -17,38 +20,10 @@ export interface SearchResponse {
   warnings: string[];
 }
 
-interface JsonResult {
-  title?: unknown;
-  url?: unknown;
-  content?: unknown;
-  description?: unknown;
-}
-
-function normalizeJsonResults(value: unknown): DdgResult[] {
-  if (!value || typeof value !== "object") return [];
-  const results = (value as { results?: unknown }).results;
-  if (!Array.isArray(results)) return [];
-  return results.flatMap((item): DdgResult[] => {
-    if (!item || typeof item !== "object") return [];
-    const result = item as JsonResult;
-    if (typeof result.title !== "string" || typeof result.url !== "string") {
-      return [];
-    }
-    const abstract =
-      typeof result.content === "string"
-        ? result.content
-        : typeof result.description === "string"
-          ? result.description
-          : "";
-    if (!/^https?:\/\//i.test(result.url)) return [];
-    return [{ title: result.title, abstract, url: result.url }];
-  });
-}
-
 async function searchDdg(
   pi: ExtensionAPI,
   query: string,
-  signal: AbortSignal | undefined,
+  signal: AbortSignal,
 ): Promise<DdgResult[]> {
   const queries = [query, ...relaxedSearchQueries(query)];
   let lastError: unknown;
@@ -61,66 +36,12 @@ async function searchDdg(
       });
       if (results.length > 0) return results;
     } catch (error) {
-      if (signal?.aborted) throw error;
+      if (signal.aborted) throw error;
       lastError = error;
     }
   }
   if (lastError) throw lastError;
   return [];
-}
-
-async function searchSearxng(
-  query: string,
-  signal: AbortSignal | undefined,
-): Promise<DdgResult[]> {
-  if (!config.searxngUrl) return [];
-  const url = new URL("search", `${config.searxngUrl.replace(/\/$/, "")}/`);
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "json");
-  const response = await fetchText(url.href, {
-    timeoutSec: config.searchTimeout,
-    maxBytes: config.searchMaxBytes,
-    allowPrivateNetwork: config.allowPrivateNetwork,
-    retries: config.httpRetries,
-    signal,
-  });
-  return normalizeJsonResults(JSON.parse(response.body));
-}
-
-async function searchMwmbl(
-  query: string,
-  signal: AbortSignal | undefined,
-): Promise<DdgResult[]> {
-  const url = new URL(config.mwmblUrl);
-  url.searchParams.set("s", query);
-  const response = await fetchText(url.href, {
-    timeoutSec: config.searchTimeout,
-    maxBytes: config.searchMaxBytes,
-    allowPrivateNetwork: config.allowPrivateNetwork,
-    retries: config.httpRetries,
-    signal,
-  });
-  return parseMwmblResults(JSON.parse(response.body));
-}
-
-async function searchMarginalia(
-  query: string,
-  limit: number,
-  signal: AbortSignal | undefined,
-): Promise<DdgResult[]> {
-  const url = new URL(MARGINALIA_API);
-  url.searchParams.set("query", query);
-  url.searchParams.set("count", String(limit));
-  url.searchParams.set("nsfw", "1");
-  const response = await fetchText(url.href, {
-    timeoutSec: config.searchTimeout,
-    maxBytes: config.searchMaxBytes,
-    allowPrivateNetwork: config.allowPrivateNetwork,
-    retries: config.httpRetries,
-    signal,
-    headers: { "api-key": config.marginaliaKey },
-  });
-  return normalizeJsonResults(JSON.parse(response.body));
 }
 
 export async function searchWeb(

@@ -4,6 +4,7 @@ const DEFAULT_CONFIG = {
   searchTotalTimeout: 30,
   fetchTimeout: 8,
   extractionTimeout: 15,
+  pdfWorkerConcurrency: 2,
   region: "wt-wt",
   fetchLimit: 200,
   fetchMaxBytes: 5_000_000,
@@ -60,6 +61,13 @@ export const config = {
   extractionTimeout: parseEnvInt(
     "WEB_EXTRACTION_TIMEOUT",
     DEFAULT_CONFIG.extractionTimeout,
+  ),
+  pdfWorkerConcurrency: Math.min(
+    8,
+    parseEnvInt(
+      "WEB_PDF_WORKER_CONCURRENCY",
+      DEFAULT_CONFIG.pdfWorkerConcurrency,
+    ),
   ),
   region: parseEnvRegion("WEB_REGION", DEFAULT_CONFIG.region),
   fetchLimit: parseEnvInt("WEB_FETCH_LIMIT", DEFAULT_CONFIG.fetchLimit),
