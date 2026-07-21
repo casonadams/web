@@ -1,0 +1,60 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Web search and content fetching tools for pi.",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "web-search",
+    "web-fetch"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/casonadams/web.git"
+  },
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "test": "node --test extensions/web/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "html-to-text": "^10.0.0",
+    "ipaddr.js": "^2.4.0",
+    "linkedom": "^0.18.13",
+    "unpdf": "^1.6.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": ">=0.80.7",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.4",
+    "@earendil-works/pi-ai": "0.80.7",
+    "@earendil-works/pi-coding-agent": "0.80.7",
+    "@earendil-works/pi-tui": "0.80.7",
+    "@types/html-to-text": "^9.0.4",
+    "@types/node": "^26.0.0",
+    "typebox": "1.3.0",
+    "typescript": "6.0.3"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "@google/genai",
+      "protobufjs"
+    ]
+  }
+}
