@@ -24,6 +24,7 @@ export default function (pi: ExtensionAPI): void {
     promptSnippet: "Search the web for current information",
     promptGuidelines: [
       "Use websearch with targeted terms or site:domain queries when primary or official sources are preferable.",
+      "Do not issue websearch calls in parallel or rapid succession; space them out to avoid provider rate limits.",
     ],
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
