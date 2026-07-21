@@ -204,7 +204,11 @@ const publicNetworkLookup: LookupFunction = (hostname, options, callback) => {
         );
         return;
       }
-      callback(null, selected.address, selected.family);
+      if (options.all) {
+        callback(null, addresses);
+      } else {
+        callback(null, selected.address, selected.family);
+      }
     },
     (error) => callback(networkError(error), "", 0),
   );
