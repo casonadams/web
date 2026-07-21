@@ -1,7 +1,9 @@
 const DEFAULT_CONFIG = {
   maxResults: 5,
   searchTimeout: 12,
+  searchTotalTimeout: 30,
   fetchTimeout: 8,
+  extractionTimeout: 15,
   region: "wt-wt",
   fetchLimit: 200,
   fetchMaxBytes: 5_000_000,
@@ -50,7 +52,15 @@ export const config = {
     "WEB_SEARCH_TIMEOUT",
     DEFAULT_CONFIG.searchTimeout,
   ),
+  searchTotalTimeout: parseEnvInt(
+    "WEB_SEARCH_TOTAL_TIMEOUT",
+    DEFAULT_CONFIG.searchTotalTimeout,
+  ),
   fetchTimeout: parseEnvInt("WEB_FETCH_TIMEOUT", DEFAULT_CONFIG.fetchTimeout),
+  extractionTimeout: parseEnvInt(
+    "WEB_EXTRACTION_TIMEOUT",
+    DEFAULT_CONFIG.extractionTimeout,
+  ),
   region: parseEnvRegion("WEB_REGION", DEFAULT_CONFIG.region),
   fetchLimit: parseEnvInt("WEB_FETCH_LIMIT", DEFAULT_CONFIG.fetchLimit),
   fetchMaxBytes: parseEnvInt(
@@ -75,9 +85,9 @@ export const config = {
     DEFAULT_CONFIG.minSnippetChars,
   ),
   allowPrivateNetwork: parseEnvBool("WEB_ALLOW_PRIVATE_NETWORK", false),
-  httpRetries: parseEnvNonNegativeInt(
-    "WEB_HTTP_RETRIES",
-    DEFAULT_CONFIG.httpRetries,
+  httpRetries: Math.min(
+    5,
+    parseEnvNonNegativeInt("WEB_HTTP_RETRIES", DEFAULT_CONFIG.httpRetries),
   ),
   fetchCacheTtlSec: parseEnvNonNegativeInt(
     "WEB_FETCH_CACHE_TTL",

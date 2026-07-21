@@ -1,7 +1,7 @@
+import { Worker } from "node:worker_threads";
 import { Readability } from "@mozilla/readability";
 import { convert } from "html-to-text";
 import { DOMParser, parseHTML } from "linkedom";
-import { extractLinks, extractText, getDocumentProxy, getMeta } from "unpdf";
 import { config } from "./config.ts";
 import { fetchBytes } from "./http.ts";
 
@@ -43,7 +43,14 @@ interface CacheEntry {
   size: number;
 }
 
+interface InFlightResource {
+  promise: Promise<ExtractedResource>;
+  controller: AbortController;
+  waiters: number;
+}
+
 const extractionCache = new Map<string, CacheEntry>();
+const inFlightResources = new Map<string, InFlightResource>();
 let extractionCacheBytes = 0;
 
 function cacheKey(url: string, mode: FetchMode): string {
@@ -244,63 +251,54 @@ function isPdf(bytes: Uint8Array, contentType: string): boolean {
   );
 }
 
-function metadataValue(value: unknown): string | undefined {
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return undefined;
+interface PdfWorkerResult {
+  text?: string;
+  error?: string;
 }
 
-async function pdfToText(bytes: Uint8Array): Promise<string> {
-  const pdf = await getDocumentProxy(bytes);
-  try {
-    const [{ totalPages, text }, { links }, metadata] = await Promise.all([
-      extractText(pdf, { mergePages: false }),
-      extractLinks(pdf),
-      getMeta(pdf, { parseDates: true }),
-    ]);
-    const pages = text
-      .map((page, index) => `[Page ${index + 1}/${totalPages}]\n${page.trim()}`)
-      .filter((page) => page.replace(/^\[Page \d+\/\d+\]\s*/, "").trim());
-    if (pages.length === 0) {
-      throw new Error("PDF contains no extractable text (it may require OCR)");
-    }
-
-    const info = metadata.info as Record<string, unknown>;
-    const metadataLines = [
-      `Pages: ${totalPages}`,
-      metadataValue(info.Title)
-        ? `Title: ${metadataValue(info.Title)}`
-        : undefined,
-      metadataValue(info.Author)
-        ? `Author: ${metadataValue(info.Author)}`
-        : undefined,
-      metadataValue(info.Subject)
-        ? `Subject: ${metadataValue(info.Subject)}`
-        : undefined,
-      metadataValue(info.CreationDate)
-        ? `Created: ${metadataValue(info.CreationDate)}`
-        : undefined,
-      metadataValue(info.ModDate)
-        ? `Modified: ${metadataValue(info.ModDate)}`
-        : undefined,
-    ].filter((value): value is string => Boolean(value));
-    const uniqueLinks = [...new Set(links)].filter((link) =>
-      /^https?:\/\//i.test(link),
+function pdfToText(bytes: Uint8Array, signal: AbortSignal): Promise<string> {
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./pdf-worker.ts", import.meta.url), {
+      workerData: bytes,
+      transferList: [bytes.buffer as ArrayBuffer],
+    });
+    let settled = false;
+    const timer = setTimeout(
+      () =>
+        finish(
+          new Error(
+            `PDF extraction timed out after ${config.extractionTimeout}s`,
+          ),
+        ),
+      config.extractionTimeout * 1000,
     );
-    const linkSection =
-      uniqueLinks.length > 0
-        ? `[PDF links]\n${uniqueLinks.map((link) => `- ${link}`).join("\n")}`
-        : undefined;
-    return [
-      `[PDF metadata]\n${metadataLines.join("\n")}`,
-      pages.join("\n\n"),
-      linkSection,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-  } finally {
-    await pdf.destroy();
-  }
+    const onAbort = () => finish(signal.reason);
+    const finish = (error?: unknown, text?: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      worker.removeAllListeners();
+      void worker.terminate();
+      if (error !== undefined) reject(error);
+      else resolve(text ?? "");
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    worker.once("message", (result: PdfWorkerResult) => {
+      if (result.error) finish(new Error(result.error));
+      else finish(undefined, result.text);
+    });
+    worker.once("error", (error) => finish(error));
+    worker.once("exit", (code) => {
+      finish(
+        new Error(
+          `PDF worker exited with code ${code} before returning a result`,
+        ),
+      );
+    });
+  });
 }
 
 function charsetFromHtml(bytes: Uint8Array): string | undefined {
@@ -530,15 +528,12 @@ function pageLines(
   return { content: selected.join("\n"), consumed: selected.length };
 }
 
-async function fetchResource(
+async function loadResource(
+  key: string,
   url: string,
   mode: FetchMode,
-  signal: AbortSignal | undefined,
+  signal: AbortSignal,
 ): Promise<ExtractedResource> {
-  const key = cacheKey(url, mode);
-  const cached = getCachedResource(key);
-  if (cached) return cached;
-
   const response = await fetchBytes(url, {
     timeoutSec: config.fetchTimeout,
     maxBytes: config.fetchMaxBytes,
@@ -547,19 +542,76 @@ async function fetchResource(
     retries: config.httpRetries,
     signal,
   });
+  signal.throwIfAborted();
   const pdf = isPdf(response.body, response.contentType);
   const extracted = pdf
-    ? { text: await pdfToText(response.body), extraction: "pdf" as const }
+    ? {
+        text: await pdfToText(response.body, signal),
+        extraction: "pdf" as const,
+      }
     : responseToText(
         decodeBody(response.body, response.contentType),
         response.contentType,
         response.url,
         mode,
       );
-  signal?.throwIfAborted();
+  signal.throwIfAborted();
   const resource = { ...extracted, finalUrl: response.url };
   cacheResource(key, resource);
   return resource;
+}
+
+function waitForResource(
+  promise: Promise<ExtractedResource>,
+  signal: AbortSignal | undefined,
+): Promise<ExtractedResource> {
+  if (!signal) return promise;
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", onAbort);
+    });
+  });
+}
+
+async function fetchResource(
+  url: string,
+  mode: FetchMode,
+  signal: AbortSignal | undefined,
+): Promise<ExtractedResource> {
+  signal?.throwIfAborted();
+  const key = cacheKey(url, mode);
+  const cached = getCachedResource(key);
+  if (cached) return cached;
+
+  let inFlight = inFlightResources.get(key);
+  if (!inFlight) {
+    const controller = new AbortController();
+    const promise = loadResource(key, url, mode, controller.signal);
+    inFlight = { promise, controller, waiters: 0 };
+    const created = inFlight;
+    inFlightResources.set(key, created);
+    const clear = () => {
+      if (inFlightResources.get(key) === created) {
+        inFlightResources.delete(key);
+      }
+    };
+    promise.then(clear, clear);
+  }
+
+  inFlight.waiters += 1;
+  try {
+    return await waitForResource(inFlight.promise, signal);
+  } finally {
+    inFlight.waiters -= 1;
+    if (inFlight.waiters === 0) {
+      if (inFlightResources.get(key) === inFlight) {
+        inFlightResources.delete(key);
+      }
+      inFlight.controller.abort();
+    }
+  }
 }
 
 export async function fetchPage(

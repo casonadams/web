@@ -40,7 +40,7 @@ interface ErrorDetails {
   errors?: unknown;
 }
 
-function requestSignal(
+export function requestSignal(
   timeoutSec: number,
   signal: AbortSignal | undefined,
 ): AbortSignal {
@@ -296,7 +296,11 @@ export async function fetchBytes(
   const dispatcher = options.allowPrivateNetwork
     ? undefined
     : new Agent({ connect: { lookup: publicNetworkLookup } });
-  const requestOptions = { ...options, dispatcher };
+  const requestOptions = {
+    ...options,
+    dispatcher,
+    signal: requestSignal(options.timeoutSec, options.signal),
+  };
   try {
     const response = await fetchFollowingRedirects(url, requestOptions);
 
@@ -312,6 +316,17 @@ export async function fetchBytes(
       contentType,
       url: response.url,
     };
+  } catch (error) {
+    const timeoutReason = requestOptions.signal.reason;
+    if (
+      !options.signal?.aborted &&
+      requestOptions.signal.aborted &&
+      timeoutReason instanceof Error &&
+      timeoutReason.name === "TimeoutError"
+    ) {
+      throw new Error(`request timed out after ${options.timeoutSec}s`);
+    }
+    throw error;
   } finally {
     await dispatcher?.close();
   }

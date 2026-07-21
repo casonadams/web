@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { config } from "./config.ts";
 import { type DdgResult, parseDdgLite } from "./ddg-parser.ts";
-import { fetchText } from "./http.ts";
+import { fetchText, requestSignal } from "./http.ts";
 import { formatSearchResults } from "./logic.ts";
 import { lynxDump } from "./lynx.ts";
 import { parseMwmblResults } from "./mwmbl-parser.ts";
@@ -129,24 +129,51 @@ export async function searchWeb(
   limit: number,
   signal: AbortSignal | undefined,
 ): Promise<SearchResponse> {
-  const attempts: Array<[string, () => Promise<DdgResult[]>]> = [
-    ["DuckDuckGo via lynx", () => searchDdg(pi, query, signal)],
+  const operationSignal = requestSignal(config.searchTotalTimeout, signal);
+  const attempts: Array<
+    [string, (attemptSignal: AbortSignal) => Promise<DdgResult[]>]
+  > = [
+    [
+      "DuckDuckGo via lynx",
+      (attemptSignal) => searchDdg(pi, query, attemptSignal),
+    ],
   ];
   if (config.searxngUrl) {
-    attempts.push(["SearXNG", () => searchSearxng(query, signal)]);
+    attempts.push([
+      "SearXNG",
+      (attemptSignal) => searchSearxng(query, attemptSignal),
+    ]);
   }
-  attempts.push(["Mwmbl", () => searchMwmbl(query, signal)]);
+  attempts.push([
+    "Mwmbl",
+    (attemptSignal) => searchMwmbl(query, attemptSignal),
+  ]);
   if (config.marginaliaKey) {
-    attempts.push(["Marginalia", () => searchMarginalia(query, limit, signal)]);
+    attempts.push([
+      "Marginalia",
+      (attemptSignal) => searchMarginalia(query, limit, attemptSignal),
+    ]);
   }
 
   const errors: string[] = [];
   const engines: string[] = [];
+  const timeoutMessage = `search timed out after ${config.searchTotalTimeout}s`;
   let results: DdgResult[] = [];
   for (const [engine, search] of attempts) {
     if (results.length >= limit) break;
+    if (operationSignal.aborted) {
+      if (results.length > 0) {
+        errors.push(timeoutMessage);
+        break;
+      }
+      throw new Error(timeoutMessage);
+    }
     try {
-      const incoming = normalizeResults(await search(), engine);
+      const attemptSignal = requestSignal(
+        config.searchTimeout,
+        operationSignal,
+      );
+      const incoming = normalizeResults(await search(attemptSignal), engine);
       if (incoming.length === 0) {
         errors.push(`${engine}: no results`);
         continue;
@@ -155,6 +182,13 @@ export async function searchWeb(
       results = mergeResults(results, incoming, query, limit);
     } catch (error) {
       if (signal?.aborted) throw error;
+      if (operationSignal.aborted) {
+        if (results.length > 0) {
+          errors.push(timeoutMessage);
+          break;
+        }
+        throw new Error(timeoutMessage);
+      }
       errors.push(
         `${engine}: ${error instanceof Error ? error.message : String(error)}`,
       );

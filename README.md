@@ -68,14 +68,16 @@ Install the dependencies with `pnpm install`. `websearch` also requires `lynx`
 | --- | --- | --- |
 | `WEB_MAX_RESULTS` | `5` | Default search results (tool maximum is 10) |
 | `WEB_SEARCH_TIMEOUT` | `12` | Timeout per search provider in seconds |
+| `WEB_SEARCH_TOTAL_TIMEOUT` | `30` | End-to-end timeout for all search providers in seconds |
 | `WEB_SEARCH_MAX_BYTES` | `2000000` | Maximum search response size |
-| `WEB_FETCH_TIMEOUT` | `8` | Fetch timeout in seconds |
+| `WEB_FETCH_TIMEOUT` | `8` | End-to-end network timeout, including retries and redirects, in seconds |
+| `WEB_EXTRACTION_TIMEOUT` | `15` | PDF extraction timeout in seconds |
 | `WEB_FETCH_LIMIT` | `200` | Default lines returned by `webfetch` |
 | `WEB_FETCH_MAX_BYTES` | `5000000` | Maximum non-PDF response size |
 | `WEB_PDF_MAX_BYTES` | `20000000` | Maximum PDF response size |
 | `WEB_OUTPUT_MAX_BYTES` | `45000` | Maximum returned tool text per call |
 | `WEB_ALLOW_PRIVATE_NETWORK` | `false` | Permit local/private destinations |
-| `WEB_HTTP_RETRIES` | `1` | Retries for transient network/HTTP failures |
+| `WEB_HTTP_RETRIES` | `1` | Retries for transient network/HTTP failures (maximum 5) |
 | `WEB_FETCH_CACHE_TTL` | `60` | Extraction-cache lifetime in seconds; `0` disables |
 | `WEB_FETCH_CACHE_ENTRIES` | `8` | Maximum cached extractions |
 | `WEB_FETCH_CACHE_MAX_BYTES` | `20000000` | Maximum total extracted cache text |

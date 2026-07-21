@@ -10,6 +10,7 @@ import { lynxDump } from "./lynx.ts";
 import { parseMwmblResults } from "./mwmbl-parser.ts";
 import { relaxedSearchQueries } from "./query-utils.ts";
 import { mergeResults, normalizeResults } from "./result-utils.ts";
+import { searchWeb } from "./search.ts";
 import { isHttpUrl } from "./url-utils.ts";
 
 config.allowPrivateNetwork = true;
@@ -215,6 +216,32 @@ test("mergeResults: prioritizes exact site-filter matches", () => {
     ),
     ["Docs", "Other"],
   );
+});
+
+test("searchWeb: applies an end-to-end provider deadline", async () => {
+  const previousTotalTimeout = config.searchTotalTimeout;
+  const previousProviderTimeout = config.searchTimeout;
+  config.searchTotalTimeout = 0.02;
+  config.searchTimeout = 1;
+  const pi = {
+    exec: async (_command, _args, options) =>
+      new Promise((_resolve, reject) => {
+        options.signal.addEventListener(
+          "abort",
+          () => reject(options.signal.reason),
+          { once: true },
+        );
+      }),
+  };
+  try {
+    await assert.rejects(
+      searchWeb(pi, "slow query", 1),
+      /timed out after 0.02s/,
+    );
+  } finally {
+    config.searchTotalTimeout = previousTotalTimeout;
+    config.searchTimeout = previousProviderTimeout;
+  }
 });
 
 test("lynxDump: preserves usable stdout from a nonzero exit", async () => {
@@ -440,6 +467,28 @@ test("fetchPage: extracts text from PDFs", async (t) => {
   assert.match(page.content, /https:\/\/example\.com\/reference/);
 });
 
+test("fetchPage: bounds PDF extraction time", async (t) => {
+  const previousTimeout = config.extractionTimeout;
+  config.extractionTimeout = 0.001;
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "application/pdf");
+    response.end(textPdf("Slow PDF"));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  try {
+    await assert.rejects(
+      fetchPage(`http://127.0.0.1:${address.port}/timed.pdf`, 1, 20),
+      /PDF extraction timed out/,
+    );
+  } finally {
+    config.extractionTimeout = previousTimeout;
+  }
+});
+
 test("fetchPage: applies the larger PDF download limit", async (t) => {
   const pdf = textPdf("Large PDF remains readable", 5_100_000);
   assert.ok(pdf.byteLength > 5_000_000);
@@ -505,6 +554,34 @@ test("fetchPage: cancels failed HTTP response bodies", async (t) => {
       ),
     ),
   ]);
+});
+
+test("fetchBytes: applies one timeout across redirect hops", async (t) => {
+  const server = createServer((request, response) => {
+    setTimeout(() => {
+      if (request.url === "/start") {
+        response.writeHead(302, { location: "/final" });
+        response.end();
+        return;
+      }
+      response.setHeader("content-type", "text/plain");
+      response.end("too late");
+    }, 40);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  await assert.rejects(
+    fetchBytes(`http://127.0.0.1:${address.port}/start`, {
+      timeoutSec: 0.06,
+      maxBytes: 1000,
+      allowPrivateNetwork: true,
+      retries: 0,
+    }),
+    /timed out/,
+  );
 });
 
 test("fetchPage: retries one transient HTTP failure", async (t) => {
@@ -594,6 +671,102 @@ test("fetchPage: reuses a bounded extraction cache for pagination", async (t) =>
   const continuation = await fetchPage(url, 3, 2);
   assert.equal(requests, 1);
   assert.match(continuation.content, /^three\nfour/);
+});
+
+test("fetchPage: coalesces concurrent extraction cache misses", async (t) => {
+  let requests = 0;
+  const server = createServer((_request, response) => {
+    requests += 1;
+    setTimeout(() => {
+      response.setHeader("content-type", "text/plain");
+      response.end("shared result");
+    }, 20);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const url = `http://127.0.0.1:${address.port}/concurrent`;
+  const pages = await Promise.all([
+    fetchPage(url, 1, 20),
+    fetchPage(url, 1, 20),
+  ]);
+  assert.equal(requests, 1);
+  assert.equal(pages[0].content, "shared result");
+  assert.equal(pages[1].content, "shared result");
+});
+
+test("fetchPage: isolates cancellation between concurrent waiters", async (t) => {
+  let requests = 0;
+  const server = createServer((_request, response) => {
+    requests += 1;
+    setTimeout(() => {
+      response.setHeader("content-type", "text/plain");
+      response.end("surviving result");
+    }, 30);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const url = `http://127.0.0.1:${address.port}/independent-cancellation`;
+  const controller = new AbortController();
+  const cancelled = fetchPage(url, 1, 20, "auto", controller.signal);
+  const surviving = fetchPage(url, 1, 20);
+  controller.abort(new Error("cancel one waiter"));
+  await assert.rejects(cancelled, { message: "cancel one waiter" });
+  assert.equal((await surviving).content, "surviving result");
+  assert.equal(requests, 1);
+});
+
+test("fetchPage: recovers after all in-flight waiters cancel", async (t) => {
+  let requests = 0;
+  let firstRequestReceived;
+  const firstRequest = new Promise((resolve) => {
+    firstRequestReceived = resolve;
+  });
+  const server = createServer((_request, response) => {
+    requests += 1;
+    if (requests === 1) firstRequestReceived();
+    setTimeout(() => {
+      response.setHeader("content-type", "text/plain");
+      response.end("recovered result");
+    }, 20);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const url = `http://127.0.0.1:${address.port}/cancel-and-retry`;
+  const controller = new AbortController();
+  const cancelled = fetchPage(url, 1, 20, "auto", controller.signal);
+  await firstRequest;
+  controller.abort(new Error("cancel only waiter"));
+  await assert.rejects(cancelled, { message: "cancel only waiter" });
+  assert.equal((await fetchPage(url, 1, 20)).content, "recovered result");
+  assert.equal(requests, 2);
+});
+
+test("fetchPage: honors cancellation on cache hits", async (t) => {
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "text/plain");
+    response.end("cached result");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const url = `http://127.0.0.1:${address.port}/cancelled-cache`;
+  await fetchPage(url, 1, 20);
+  const controller = new AbortController();
+  controller.abort(new Error("cancelled cache read"));
+  await assert.rejects(fetchPage(url, 1, 20, "auto", controller.signal), {
+    message: "cancelled cache read",
+  });
 });
 
 test("fetchPage: preserves indentation at page boundaries", async (t) => {
