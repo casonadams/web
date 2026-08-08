@@ -1,32 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseMwmblResults } from "./engines/mwmbl.ts";
 import { mergeResults, normalizeResults } from "./result-utils.ts";
 
-test("parseMwmblResults: joins highlighted title and extract fragments", () => {
-  assert.deepEqual(
-    parseMwmblResults([
-      {
-        url: "https://example.com/result",
-        title: [
-          { value: "Example", is_bold: true },
-          { value: " result", is_bold: false },
-        ],
-        extract: [
-          { value: "Useful ", is_bold: false },
-          { value: "summary", is_bold: true },
-        ],
-      },
-    ]),
-    [
-      {
-        title: "Example result",
-        abstract: "Useful summary",
-        url: "https://example.com/result",
-      },
-    ],
-  );
-});
 test("normalizeResults: canonicalizes URLs and adds selection signals", () => {
   const [result] = normalizeResults(
     [

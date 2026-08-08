@@ -1,16 +1,10 @@
 import { bingEngine } from "./bing.ts";
 import { ddgLiteEngine } from "./ddg-lite.ts";
-import { mwmblEngine } from "./mwmbl.ts";
 import type { SearchEngine } from "./types.ts";
 import { yahooEngine } from "./yahoo.ts";
 
 /** All supported search engines. Add or remove an engine here. */
-export const ENGINES: SearchEngine[] = [
-  ddgLiteEngine,
-  yahooEngine,
-  bingEngine,
-  mwmblEngine,
-];
+export const ENGINES: SearchEngine[] = [ddgLiteEngine, yahooEngine, bingEngine];
 
 /** All engines in a random order. */
 export function shuffledEngines(): SearchEngine[] {

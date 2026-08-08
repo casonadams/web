@@ -88,8 +88,6 @@ export const config = {
     "WEB_SEARCH_MAX_BYTES",
     DEFAULT_CONFIG.searchMaxBytes,
   ),
-  mwmblUrl:
-    process.env.WEB_MWMBL_URL?.trim() || "https://api.mwmbl.org/api/v1/search/",
   allowPrivateNetwork: parseEnvBool("WEB_ALLOW_PRIVATE_NETWORK", false),
   httpRetries: Math.min(
     5,

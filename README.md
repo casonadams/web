@@ -28,7 +28,7 @@ pi -e git:git@github.com:casonadams/web.git
   report that OCR is required.
 - **`websearch`** fetches search-engine HTML directly with Node's `fetch`
   using a text-browser user agent, and randomly selects among DuckDuckGo
-  Lite, Yahoo, Bing, and Mwmbl as the provider. Results are normalized,
+  Lite, Yahoo, and Bing as the provider. Results are normalized,
   deduplicated, and annotated with hostname, provider, and useful content
   hints. Explicit `site:` constraints are enforced across every provider.
   GitHub `blob` URLs are converted to raw content URLs when direct fetching
@@ -39,8 +39,7 @@ pi -e git:git@github.com:casonadams/web.git
 A text-browser user agent is used because search engines allowlist known
 text browsers (Lynx, w3m, links) while challenging generic clients such as
 curl and headless browsers. The Lynx user-agent string is sent, but no lynx
-binary is required. Mwmbl is a free, non-profit search engine with its own
-community-built index, and needs no API key.
+binary is required.
 
 `webfetch` blocks loopback, private, link-local, reserved, and other non-public
 addresses by default, including every redirect target. Set
@@ -83,7 +82,6 @@ subprocess or an external browser.
 | `WEB_FETCH_CACHE_ENTRIES` | `8` | Maximum cached extractions |
 | `WEB_FETCH_CACHE_MAX_BYTES` | `20000000` | Maximum total extracted cache text |
 | `WEB_REGION` | `wt-wt` | DuckDuckGo region code, such as `us-en` |
-| `WEB_MWMBL_URL` | `https://api.mwmbl.org/api/v1/search/` | Mwmbl search endpoint |
 
 `webfetch` supports `mode: "auto" | "main" | "full"` for HTML. `auto` uses
 substantial main content when available and safely falls back to the complete
@@ -112,5 +110,3 @@ and pagination.
 
 - SearXNG's DuckDuckGo engine docs describe the no-JavaScript endpoint and
   CAPTCHA detection: https://docs.searxng.org/dev/engines/online/duckduckgo.html
-- Mwmbl is an open-source, non-profit search engine with its own community-built
-  index: https://github.com/mwmbl/mwmbl
