@@ -3,12 +3,33 @@ import { fetchText } from "../../http/http.ts";
 import type { SearchResult } from "../result.ts";
 import type { SearchEngine } from "./types.ts";
 
+const MAX_DESCRIPTION_BYTES = 300;
+const encoder = new TextEncoder();
+
 interface FirecrawlResponse {
   success?: unknown;
   data?: {
     web?: unknown;
   };
   error?: unknown;
+}
+
+function compactDescription(value: string): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (encoder.encode(compact).byteLength <= MAX_DESCRIPTION_BYTES) {
+    return compact;
+  }
+
+  const maxContentBytes = MAX_DESCRIPTION_BYTES - 3;
+  let content = "";
+  let bytes = 0;
+  for (const character of compact) {
+    const characterBytes = encoder.encode(character).byteLength;
+    if (bytes + characterBytes > maxContentBytes) break;
+    content += character;
+    bytes += characterBytes;
+  }
+  return `${content.trimEnd()}...`;
 }
 
 export function parseFirecrawlResponse(body: string): SearchResult[] {
@@ -37,7 +58,7 @@ export function parseFirecrawlResponse(body: string): SearchResult[] {
             : "",
         abstract:
           "description" in result && typeof result.description === "string"
-            ? result.description
+            ? compactDescription(result.description)
             : "",
         url: result.url,
       },
