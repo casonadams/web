@@ -37,12 +37,32 @@ export function renderSearchCall(args: SearchCallArgs, theme: Theme) {
   );
 }
 
+function errorText(content: unknown): string {
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter(
+      (block) =>
+        block &&
+        typeof block === "object" &&
+        (block as { type?: string }).type === "text",
+    )
+    .map((block) => (block as { text?: string }).text ?? "")
+    .join("\n")
+    .trim();
+}
+
 export function renderSearchResult(
-  result: { details?: unknown },
+  result: { content?: unknown; details?: unknown },
   { isPartial }: { isPartial: boolean },
   theme: Theme,
+  context?: { isError?: boolean },
 ) {
   if (isPartial) return new Text(theme.fg("warning", "Searching..."), 0, 0);
+  if (context?.isError) {
+    const message = errorText(result.content);
+    const label = message ? `search failed: ${message}` : "Search failed";
+    return new Text(theme.fg("error", label), 0, 0);
+  }
   const details = result.details as SearchResultDetails | undefined;
   const count = details?.count ?? 0;
   const engine = details?.engine ? ` via ${details.engine}` : "";

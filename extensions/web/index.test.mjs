@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import registerWebTools from "./index.ts";
-import { renderFetchResult } from "./logic.ts";
+import { renderFetchResult, renderSearchResult } from "./logic.ts";
 
 function registeredTool(name) {
   const tools = [];
@@ -48,4 +48,20 @@ test("renderFetchResult: renders errored calls as failures", () => {
   const output = component.render(200).join("\n");
   assert.match(output, /\[error\]/);
   assert.doesNotMatch(output, /\[success\]/);
+});
+
+test("renderSearchResult: surfaces the error instead of 0 results", () => {
+  const theme = {
+    bold: (text) => text,
+    fg: (color, text) => `[${color}]${text}`,
+  };
+  const component = renderSearchResult(
+    { content: [{ type: "text", text: "DuckDuckGo Lite: no results" }] },
+    { isPartial: false },
+    theme,
+    { isError: true },
+  );
+  const output = component.render(200).join("\n");
+  assert.match(output, /\[error\]search failed: DuckDuckGo Lite: no results/);
+  assert.doesNotMatch(output, /0 results/);
 });
