@@ -28,7 +28,7 @@ pi -e git:git@github.com:casonadams/web.git
   report that OCR is required.
 - **`websearch`** fetches search-engine HTML directly with Node's `fetch`
   using a text-browser user agent, and randomly selects among DuckDuckGo
-  Lite, Yahoo, and Bing as the provider. Results are normalized,
+  Lite and Yahoo as the provider. Results are normalized,
   deduplicated, and annotated with hostname, provider, and useful content
   hints. Explicit `site:` constraints are enforced across every provider.
   GitHub `blob` URLs are converted to raw content URLs when direct fetching

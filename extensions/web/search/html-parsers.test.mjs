@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseBingHtml } from "./engines/bing.ts";
 import { parseDdgLiteHtml } from "./engines/ddg-lite.ts";
 import { parseYahooHtml } from "./engines/yahoo.ts";
 
@@ -54,21 +53,6 @@ test("parseYahooHtml: parses algo-sr blocks and decodes RU= URLs", () => {
       </div>
     </li>`;
   assert.deepEqual(parseYahooHtml(html), [
-    {
-      title: "Example Title",
-      abstract: "A useful snippet with enough text.",
-      url: "https://example.com/path",
-    },
-  ]);
-});
-
-test("parseBingHtml: parses b_algo blocks and decodes /ck/a u= URLs", () => {
-  const html = `
-    <li class="b_algo">
-      <h2><a href="https://www.bing.com/ck/a?!&&p=abc&u=a1aHR0cHM6Ly9leGFtcGxlLmNvbS9wYXRo">Example Title</a></h2>
-      <div class="b_caption"><p>A useful snippet with enough text.</p></div>
-    </li>`;
-  assert.deepEqual(parseBingHtml(html), [
     {
       title: "Example Title",
       abstract: "A useful snippet with enough text.",
