@@ -30,6 +30,33 @@ type SearchAttempt = readonly [
 const MAX_BACKOFF_MS = 5000;
 const inFlightSearches = new Map<string, Promise<SearchResponse>>();
 
+// Serializes the start of searches so bursts are spaced out by
+// config.searchMinIntervalMs, independent of how the caller paces them.
+let searchStartChain: Promise<void> = Promise.resolve();
+let lastSearchStartMs = 0;
+
+function throttleSearchStart(signal: AbortSignal | undefined): Promise<void> {
+  const previous = searchStartChain;
+  let release!: () => void;
+  searchStartChain = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return previous
+    .catch(() => {})
+    .then(async () => {
+      try {
+        const elapsed = Date.now() - lastSearchStartMs;
+        const waitMs = config.searchMinIntervalMs - elapsed;
+        if (waitMs > 0) {
+          await delay(waitMs, undefined, { signal });
+        }
+        lastSearchStartMs = Date.now();
+      } finally {
+        release();
+      }
+    });
+}
+
 export function retryAfterMs(error: unknown): number | undefined {
   if (!(error instanceof Error)) return undefined;
   const match = error.message.match(/retry-after:\s*(\d+)/i);
@@ -147,7 +174,10 @@ export async function searchWeb(
   const key = searchKey(query, limit);
   const existing = inFlightSearches.get(key);
   if (existing) return waitForSearch(existing, signal);
-  const promise = search(query, limit, signal);
+  const promise = (async () => {
+    await throttleSearchStart(signal);
+    return search(query, limit, signal);
+  })();
   inFlightSearches.set(key, promise);
   try {
     return await promise;

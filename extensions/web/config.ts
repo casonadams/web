@@ -3,6 +3,7 @@ const DEFAULT_CONFIG = {
   searchTimeout: 12,
   searchTotalTimeout: 30,
   searchBackoffMs: 500,
+  searchMinIntervalMs: 1000,
   fetchTimeout: 8,
   extractionTimeout: 15,
   pdfWorkerConcurrency: 2,
@@ -60,6 +61,10 @@ export const config = {
   searchBackoffMs: parseEnvNonNegativeInt(
     "WEB_SEARCH_BACKOFF_MS",
     DEFAULT_CONFIG.searchBackoffMs,
+  ),
+  searchMinIntervalMs: parseEnvNonNegativeInt(
+    "WEB_SEARCH_MIN_INTERVAL_MS",
+    DEFAULT_CONFIG.searchMinIntervalMs,
   ),
   fetchTimeout: parseEnvInt("WEB_FETCH_TIMEOUT", DEFAULT_CONFIG.fetchTimeout),
   extractionTimeout: parseEnvInt(
