@@ -2,6 +2,7 @@ const DEFAULT_CONFIG = {
   maxResults: 5,
   searchTimeout: 12,
   searchTotalTimeout: 30,
+  searchBackoffMs: 500,
   fetchTimeout: 8,
   extractionTimeout: 15,
   pdfWorkerConcurrency: 2,
@@ -11,7 +12,6 @@ const DEFAULT_CONFIG = {
   pdfMaxBytes: 20_000_000,
   outputMaxBytes: 45_000,
   searchMaxBytes: 2_000_000,
-  minSnippetChars: 50,
   httpRetries: 1,
   fetchCacheTtlSec: 60,
   fetchCacheEntries: 8,
@@ -57,6 +57,10 @@ export const config = {
     "WEB_SEARCH_TOTAL_TIMEOUT",
     DEFAULT_CONFIG.searchTotalTimeout,
   ),
+  searchBackoffMs: parseEnvNonNegativeInt(
+    "WEB_SEARCH_BACKOFF_MS",
+    DEFAULT_CONFIG.searchBackoffMs,
+  ),
   fetchTimeout: parseEnvInt("WEB_FETCH_TIMEOUT", DEFAULT_CONFIG.fetchTimeout),
   extractionTimeout: parseEnvInt(
     "WEB_EXTRACTION_TIMEOUT",
@@ -84,14 +88,8 @@ export const config = {
     "WEB_SEARCH_MAX_BYTES",
     DEFAULT_CONFIG.searchMaxBytes,
   ),
-  searxngUrl: process.env.WEB_SEARXNG_URL?.trim() || "",
   mwmblUrl:
     process.env.WEB_MWMBL_URL?.trim() || "https://api.mwmbl.org/api/v1/search/",
-  marginaliaKey: process.env.WEB_MARGINALIA_KEY?.trim() || "",
-  minSnippetChars: parseEnvInt(
-    "WEB_MIN_SNIPPET_CHARS",
-    DEFAULT_CONFIG.minSnippetChars,
-  ),
   allowPrivateNetwork: parseEnvBool("WEB_ALLOW_PRIVATE_NETWORK", false),
   httpRetries: Math.min(
     5,

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
 import { Worker } from "node:worker_threads";
-import { config } from "./config.ts";
+import { config } from "../config.ts";
+import { textPdf } from "../test-helpers.mjs";
 import { fetchPage } from "./fetch.ts";
-import { textPdf } from "./test-helpers.mjs";
 
 config.allowPrivateNetwork = true;
 

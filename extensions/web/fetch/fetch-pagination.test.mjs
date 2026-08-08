@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import { config } from "./config.ts";
+import { config } from "../config.ts";
 import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;

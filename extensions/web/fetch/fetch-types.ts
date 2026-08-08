@@ -7,6 +7,7 @@ export type ExtractionKind =
   | "json"
   | "markdown"
   | "xml"
+  | "csv"
   | "text";
 
 export interface FetchedPage {

@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-import { config } from "./config.ts";
+import { config } from "../../config.ts";
 
 interface PdfWorkerResult {
   text?: string;

@@ -2,7 +2,8 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { config } from "./config.ts";
-import { fetchPage } from "./fetch.ts";
+import { fetchPage } from "./fetch/fetch.ts";
+import { isHttpUrl } from "./http/url-utils.ts";
 import {
   type FetchResultDetails,
   renderFetchCall,
@@ -11,8 +12,7 @@ import {
   renderSearchResult,
   type SearchResultDetails,
 } from "./logic.ts";
-import { formatSearchResults, searchWeb } from "./search.ts";
-import { isHttpUrl } from "./url-utils.ts";
+import { formatSearchResults, searchWeb } from "./search/search.ts";
 
 const MAX_SEARCH_RESULTS = 10;
 
@@ -42,7 +42,6 @@ export default function (pi: ExtensionAPI): void {
       const limit =
         params.limit ?? Math.min(config.maxResults, MAX_SEARCH_RESULTS);
       const { engine, results, warnings } = await searchWeb(
-        pi,
         params.query,
         limit,
         signal,

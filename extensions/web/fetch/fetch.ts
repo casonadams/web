@@ -1,5 +1,7 @@
-import { config } from "./config.ts";
-import { decodeBody, responseToText } from "./content-extract.ts";
+import { config } from "../config.ts";
+import { fetchBytes } from "../http/http.ts";
+import { decodeBody, responseToText } from "./extract/index.ts";
+import { pdfToText } from "./extract/pdf.ts";
 import { getOrLoadResource, resourceCacheKey } from "./fetch-cache.ts";
 import type {
   ExtractedResource,
@@ -7,9 +9,7 @@ import type {
   FetchedPage,
   FetchMode,
 } from "./fetch-types.ts";
-import { fetchBytes } from "./http.ts";
 import { pageLines, preparedSize, prepareLines } from "./pagination.ts";
-import { pdfToText } from "./pdf.ts";
 
 export type { ExtractionKind, FetchedPage, FetchMode } from "./fetch-types.ts";
 

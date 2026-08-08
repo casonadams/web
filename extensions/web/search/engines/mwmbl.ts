@@ -1,4 +1,7 @@
-import type { DdgResult } from "./ddg-parser.ts";
+import { config } from "../../config.ts";
+import { fetchText } from "../../http/http.ts";
+import type { SearchResult } from "../result.ts";
+import type { SearchEngine } from "./types.ts";
 
 interface MwmblFragment {
   value?: unknown;
@@ -24,9 +27,9 @@ function fragmentText(value: unknown): string {
     .trim();
 }
 
-export function parseMwmblResults(value: unknown): DdgResult[] {
+export function parseMwmblResults(value: unknown): SearchResult[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((item): DdgResult[] => {
+  return value.flatMap((item): SearchResult[] => {
     if (!item || typeof item !== "object") return [];
     const result = item as MwmblResult;
     if (typeof result.url !== "string" || !/^https?:\/\//i.test(result.url)) {
@@ -37,3 +40,19 @@ export function parseMwmblResults(value: unknown): DdgResult[] {
     return [{ title, abstract: fragmentText(result.extract), url: result.url }];
   });
 }
+
+export const mwmblEngine: SearchEngine = {
+  name: "Mwmbl",
+  search: async (query, signal) => {
+    const url = new URL(config.mwmblUrl);
+    url.searchParams.set("s", query);
+    const response = await fetchText(url.href, {
+      timeoutSec: config.searchTimeout,
+      maxBytes: config.searchMaxBytes,
+      allowPrivateNetwork: config.allowPrivateNetwork,
+      retries: config.httpRetries,
+      signal,
+    });
+    return parseMwmblResults(JSON.parse(response.body));
+  },
+};

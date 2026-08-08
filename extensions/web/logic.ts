@@ -1,12 +1,10 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import type { DdgResult } from "./ddg-parser.ts";
+import type { SearchResult } from "./search/result.ts";
 
-export type { DdgResult };
+export type { SearchResult };
 
 // ── Shared types ──────────────────────────────────────────────────────────────
-
-// (DdgResult lives in ./ddg-parser.js; re-exported above for callers.)
 
 export type SearchCallArgs = { query: string };
 export type FetchCallArgs = {
@@ -17,7 +15,15 @@ export type SearchResultDetails = { count: number; engine?: string };
 export type FetchResultDetails = {
   sourceUrl: string;
   finalUrl?: string;
-  extraction?: "main" | "full" | "pdf" | "json" | "markdown" | "xml" | "text";
+  extraction?:
+    | "main"
+    | "full"
+    | "pdf"
+    | "json"
+    | "markdown"
+    | "xml"
+    | "csv"
+    | "text";
 };
 
 // ── Renderers ─────────────────────────────────────────────────────────────────
@@ -81,7 +87,7 @@ export function renderFetchResult(
 
 // ── Output formatters ─────────────────────────────────────────────────────────
 
-function formatResult(result: DdgResult, index: number): string {
+function formatResult(result: SearchResult, index: number): string {
   const signals = [result.hostname, result.contentHint, result.source].filter(
     Boolean,
   );
@@ -92,7 +98,7 @@ function formatResult(result: DdgResult, index: number): string {
 
 export function formatSearchResults(
   query: string,
-  results: DdgResult[],
+  results: SearchResult[],
 ): string {
   if (!results.length) return `No results found for: ${query}`;
   return `**Search results for:** ${query}\n\n${results.map(formatResult).join("\n\n")}`;

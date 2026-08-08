@@ -1,6 +1,6 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
-import type { FetchMode } from "./fetch-types.ts";
+import type { FetchMode } from "../fetch-types.ts";
 import { htmlToText } from "./html-to-text.ts";
 
 interface MainContent {

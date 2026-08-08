@@ -20,7 +20,7 @@
   "scripts": {
     "format": "biome format --write .",
     "lint": "biome check .",
-    "test": "node --test extensions/web/*.test.mjs",
+    "test": "node --test \"extensions/web/**/*.test.mjs\"",
     "typecheck": "tsc --noEmit"
   },
   "pi": {

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import { config } from "./config.ts";
+import { config } from "../config.ts";
+import { fetchBytes } from "../http/http.ts";
 import { fetchPage } from "./fetch.ts";
-import { fetchBytes } from "./http.ts";
 
 config.allowPrivateNetwork = true;
 
@@ -160,6 +160,29 @@ test("fetchPage: retries one transient HTTP failure", async (t) => {
   const page = await fetchPage(`http://127.0.0.1:${address.port}/retry`, 1, 20);
   assert.equal(requests, 2);
   assert.match(page.content, /recovered/);
+});
+test("fetchBytes: surfaces retry-after in the error message", async (t) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(429, {
+      "retry-after": "5",
+      "content-type": "text/plain",
+    });
+    response.end("rate limited");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  await assert.rejects(
+    fetchBytes(`http://127.0.0.1:${address.port}/limited`, {
+      timeoutSec: 1,
+      maxBytes: 1000,
+      allowPrivateNetwork: true,
+      retries: 0,
+    }),
+    /HTTP 429.*retry-after: 5/,
+  );
 });
 test("fetchPage: reports final redirect URL", async (t) => {
   const server = createServer((request, response) => {

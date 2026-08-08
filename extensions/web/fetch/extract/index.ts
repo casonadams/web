@@ -1,7 +1,8 @@
-import type { ExtractedText, FetchMode } from "./fetch-types.ts";
-import { extractHtml } from "./html-extract.ts";
-import { resolveMarkdownLinks } from "./markdown-extract.ts";
-import { extractXml } from "./xml-extract.ts";
+import type { ExtractedText, FetchMode } from "../fetch-types.ts";
+import { extractCsv } from "./csv.ts";
+import { extractHtml } from "./html.ts";
+import { resolveMarkdownLinks } from "./markdown.ts";
+import { extractXml } from "./xml.ts";
 
 function charsetFromHtml(bytes: Uint8Array): string | undefined {
   const head = new TextDecoder("ascii").decode(bytes.subarray(0, 4096));
@@ -28,6 +29,21 @@ function isMarkdown(contentType: string, url: string): boolean {
     contentType.includes("markdown") ||
     /\.(?:md|markdown)(?:$|[?#])/i.test(new URL(url).pathname)
   );
+}
+
+function isCsv(contentType: string, url: string): boolean {
+  return (
+    contentType.includes("csv") ||
+    contentType.includes("tab-separated") ||
+    /\.(?:csv|tsv)(?:$|[?#])/i.test(new URL(url).pathname)
+  );
+}
+
+function csvDelimiter(contentType: string, url: string): string {
+  return contentType.includes("tab-separated") ||
+    /\.tsv(?:$|[?#])/i.test(new URL(url).pathname)
+    ? "\t"
+    : ",";
 }
 
 export function responseToText(
@@ -67,6 +83,12 @@ export function responseToText(
   ) {
     const xml = extractXml(body, baseUrl);
     return { text: xml ?? body.trim(), extraction: "xml" };
+  }
+  if (isCsv(contentType, baseUrl)) {
+    return {
+      text: extractCsv(body, csvDelimiter(contentType, baseUrl)),
+      extraction: "csv",
+    };
   }
   if (
     contentType &&

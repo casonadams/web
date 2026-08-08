@@ -1,8 +1,7 @@
 # Web Extension
 
 A pi extension package that provides two tools: `websearch` and `webfetch`.
-Search deliberately keeps `lynx`, while page fetching is implemented in
-TypeScript.
+Both are implemented in TypeScript and run without a subprocess.
 
 ## Install
 
@@ -22,26 +21,26 @@ pi -e git:git@github.com:casonadams/web.git
   extracts meaningful HTML with semantic `<main>`/`<article>` elements or
   Mozilla Readability, converts the selected HTML with `html-to-text`, extracts
   text-based PDFs with metadata and links using `unpdf`, resolves relative
-  Markdown links, formats RSS/Atom feeds and sitemaps, and formats JSON and plain
-  text. It respects declared and HTML character encodings, HTML `<base href>`,
-  redirects, line pagination, and a final output byte cap. It does not start a
-  subprocess. Image-only PDFs report that OCR is required.
-- **`websearch`** keeps the proven
-  `lynx -dump -nolist https://lite.duckduckgo.com/lite/` path as its primary
-  provider. Results are normalized, deduplicated, and annotated with hostname,
-  provider, and useful content hints. Explicit `site:` constraints are enforced
-  across every provider. GitHub `blob` URLs are converted to raw
-  content URLs when direct fetching is preferable. If DuckDuckGo returns its
-  error page, the tool retries conservative query variants with quotes or
-  natural-language filler removed. If it still returns fewer than the requested
-  count, the tool fills the remainder from a configured SearXNG API, Mwmbl's
-  free non-profit search API, and optionally Marginalia.
+  Markdown links, formats RSS/Atom feeds and sitemaps, formats CSV/TSV as a
+  bounded Markdown table, and formats JSON and plain text. It respects declared
+  and HTML character encodings, HTML `<base href>`, redirects, line pagination,
+  and a final output byte cap. It does not start a subprocess. Image-only PDFs
+  report that OCR is required.
+- **`websearch`** fetches search-engine HTML directly with Node's `fetch`
+  using a text-browser user agent, and randomly selects among DuckDuckGo
+  Lite, Yahoo, Bing, and Mwmbl as the provider. Results are normalized,
+  deduplicated, and annotated with hostname, provider, and useful content
+  hints. Explicit `site:` constraints are enforced across every provider.
+  GitHub `blob` URLs are converted to raw content URLs when direct fetching
+  is preferable. If the selected engine returns no results, the tool retries
+  conservative query variants with quotes or natural-language filler
+  removed, then moves on to the next randomly selected engine.
 
-`lynx` remains primary because DuckDuckGo can challenge Node's TLS fingerprint.
-Mwmbl provides the default independent fallback index without an API key.
-Marginalia is disabled by default because its shared `public` key is frequently
-rate-limited. Set `WEB_MARGINALIA_KEY` only when you have intentionally chosen a
-Marginalia key. A self-hosted SearXNG instance remains the strongest fallback.
+A text-browser user agent is used because search engines allowlist known
+text browsers (Lynx, w3m, links) while challenging generic clients such as
+curl and headless browsers. The Lynx user-agent string is sent, but no lynx
+binary is required. Mwmbl is a free, non-profit search engine with its own
+community-built index, and needs no API key.
 
 `webfetch` blocks loopback, private, link-local, reserved, and other non-public
 addresses by default, including every redirect target. Set
@@ -59,9 +58,8 @@ Runtime dependencies are declared in `package.json`:
   PDF.js build.
 - `ipaddr.js` for private and non-public network address classification.
 
-Install the dependencies with `pnpm install`. `websearch` also requires `lynx`
-(`brew install lynx` on macOS or
-`apt install lynx` on Debian/Ubuntu). `webfetch` does not use `lynx`.
+Install the dependencies with `pnpm install`. Neither tool requires a
+subprocess or an external browser.
 
 ## Configuration
 
@@ -70,6 +68,7 @@ Install the dependencies with `pnpm install`. `websearch` also requires `lynx`
 | `WEB_MAX_RESULTS` | `5` | Default search results (tool maximum is 10) |
 | `WEB_SEARCH_TIMEOUT` | `12` | Timeout per search provider in seconds |
 | `WEB_SEARCH_TOTAL_TIMEOUT` | `30` | End-to-end timeout for all search providers in seconds |
+| `WEB_SEARCH_BACKOFF_MS` | `500` | Delay between engine attempts after a failure; a `Retry-After` header overrides it |
 | `WEB_SEARCH_MAX_BYTES` | `2000000` | Maximum search response size |
 | `WEB_FETCH_TIMEOUT` | `8` | End-to-end network timeout, including retries and redirects, in seconds |
 | `WEB_EXTRACTION_TIMEOUT` | `15` | PDF extraction timeout in seconds, including queue time |
@@ -84,10 +83,7 @@ Install the dependencies with `pnpm install`. `websearch` also requires `lynx`
 | `WEB_FETCH_CACHE_ENTRIES` | `8` | Maximum cached extractions |
 | `WEB_FETCH_CACHE_MAX_BYTES` | `20000000` | Maximum total extracted cache text |
 | `WEB_REGION` | `wt-wt` | DuckDuckGo region code, such as `us-en` |
-| `WEB_MIN_SNIPPET_CHARS` | `50` | Minimum DuckDuckGo snippet length |
-| `WEB_SEARXNG_URL` | unset | Optional SearXNG base URL with JSON enabled |
 | `WEB_MWMBL_URL` | `https://api.mwmbl.org/api/v1/search/` | Mwmbl search endpoint |
-| `WEB_MARGINALIA_KEY` | unset | Optional Marginalia API key |
 
 `webfetch` supports `mode: "auto" | "main" | "full"` for HTML. `auto` uses
 substantial main content when available and safely falls back to the complete
@@ -95,9 +91,8 @@ page. `main` requires successful focused extraction. `full` always includes the
 whole body, including navigation and sidebars. Focused results state that
 `mode="full"` can recover omitted surrounding content.
 
-SearXNG does not always enable JSON on public instances. A private or explicitly
-configured instance is the dependable option. Search results are intentionally
-not cached, so repeated calls always contact the configured providers.
+Search results are intentionally not cached, so repeated calls always contact
+the configured providers.
 
 ## Testing
 
@@ -107,7 +102,7 @@ pnpm test
 pnpm typecheck
 ```
 
-The web tests cover lynx/DuckDuckGo parsing, URL validation, native fetching,
+The web tests cover search-engine HTML parsing, URL validation, native fetching,
 automatic/full HTML extraction, charset and base-URL handling, redirects,
 private-network blocking, transient retries, bounded caching and output,
 content-aware size limits, Markdown links, XML feeds, PDF text/metadata/links,
@@ -115,11 +110,7 @@ and pagination.
 
 ## Research notes
 
-- SearXNG documents `GET /search?q=...&format=json`, while noting that instances
-  may disable JSON: https://docs.searxng.org/dev/search_api.html
 - SearXNG's DuckDuckGo engine docs describe the no-JavaScript endpoint and
   CAPTCHA detection: https://docs.searxng.org/dev/engines/online/duckduckgo.html
 - Mwmbl is an open-source, non-profit search engine with its own community-built
   index: https://github.com/mwmbl/mwmbl
-- Marginalia documents its shared public-key rate limit and optional keys:
-  https://about.marginalia-search.com/article/api/

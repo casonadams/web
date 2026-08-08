@@ -101,7 +101,11 @@ export async function fetchBytes(
     const response = await fetchFollowingRedirects(url, requestOptions);
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
-      throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+      const retryAfter = response.headers.get("retry-after");
+      const suffix = retryAfter ? ` (retry-after: ${retryAfter})` : "";
+      throw new Error(
+        `HTTP ${response.status} ${response.statusText}${suffix}`.trim(),
+      );
     }
     const contentType =
       response.headers.get("content-type")?.toLowerCase() ?? "";

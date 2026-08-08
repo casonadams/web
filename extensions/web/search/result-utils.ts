@@ -1,4 +1,4 @@
-import type { DdgResult } from "./ddg-parser.ts";
+import type { SearchResult } from "./result.ts";
 
 const TRACKING_PARAMETERS = new Set([
   "dclid",
@@ -89,9 +89,9 @@ function matchesSite(hostname: string | undefined, domain: string): boolean {
 }
 
 export function filterResultsForQuery(
-  results: DdgResult[],
+  results: SearchResult[],
   query: string,
-): DdgResult[] {
+): SearchResult[] {
   const domain = siteDomain(query);
   if (!domain) return results;
   return results.filter((result) => {
@@ -101,10 +101,10 @@ export function filterResultsForQuery(
 }
 
 export function normalizeResults(
-  results: DdgResult[],
+  results: SearchResult[],
   source: string,
-): DdgResult[] {
-  return results.flatMap((result): DdgResult[] => {
+): SearchResult[] {
+  return results.flatMap((result): SearchResult[] => {
     const url = canonicalUrl(result.url);
     if (!url) return [];
     return [
@@ -120,12 +120,12 @@ export function normalizeResults(
 }
 
 export function mergeResults(
-  current: DdgResult[],
-  incoming: DdgResult[],
+  current: SearchResult[],
+  incoming: SearchResult[],
   query: string,
   limit: number,
-): DdgResult[] {
-  const byUrl = new Map<string, DdgResult>();
+): SearchResult[] {
+  const byUrl = new Map<string, SearchResult>();
   for (const result of filterResultsForQuery(
     [...current, ...incoming],
     query,

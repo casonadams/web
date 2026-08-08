@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseMwmblResults } from "./mwmbl-parser.ts";
+import { parseMwmblResults } from "./engines/mwmbl.ts";
 import { mergeResults, normalizeResults } from "./result-utils.ts";
 
 test("parseMwmblResults: joins highlighted title and extract fragments", () => {
@@ -36,12 +36,12 @@ test("normalizeResults: canonicalizes URLs and adds selection signals", () => {
         url: "https://docs.example.com/api/?utm_source=test&b=2&a=1#section",
       },
     ],
-    "DuckDuckGo via lynx",
+    "DuckDuckGo Lite",
   );
   assert.equal(result.url, "https://docs.example.com/api/?a=1&b=2");
   assert.equal(result.hostname, "docs.example.com");
   assert.equal(result.contentHint, "documentation");
-  assert.equal(result.source, "DuckDuckGo via lynx");
+  assert.equal(result.source, "DuckDuckGo Lite");
 });
 test("mergeResults: deduplicates URLs and prefers HTTPS", () => {
   const current = normalizeResults(
@@ -66,7 +66,7 @@ test("normalizeResults: converts GitHub blob URLs to direct content", () => {
         url: "https://github.com/unjs/unpdf/blob/main/README.md?plain=1",
       },
     ],
-    "DuckDuckGo via lynx",
+    "DuckDuckGo Lite",
   );
   assert.equal(
     result.url,
