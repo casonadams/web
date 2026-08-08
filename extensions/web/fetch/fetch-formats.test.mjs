@@ -39,6 +39,27 @@ test("fetchPage: resolves relative Markdown links outside code fences", async (t
   assert.match(page.content, new RegExp(`${address.port}/reference\\.md`));
   assert.match(page.content, /\.\/leave-this-relative\.md/);
 });
+test("fetchPage: resolves protocol-relative Markdown links", async (t) => {
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "text/markdown");
+    response.end("[Asset](//cdn.example.com/asset.txt)");
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const page = await fetchPage(
+    `http://127.0.0.1:${address.port}/docs/README.md`,
+    1,
+    30,
+  );
+  assert.match(
+    page.content,
+    /\[Asset\]\(http:\/\/cdn\.example\.com\/asset\.txt\)/,
+  );
+});
+
 test("fetchPage: preserves links inside mixed Markdown fences", async (t) => {
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "text/markdown");

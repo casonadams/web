@@ -22,6 +22,11 @@ type SearchFn = (
   signal: AbortSignal | undefined,
 ) => Promise<SearchResponse>;
 
+type SearchAttempt = readonly [
+  engine: string,
+  search: (attemptSignal: AbortSignal) => Promise<SearchResult[]>,
+];
+
 const MAX_BACKOFF_MS = 5000;
 const inFlightSearches = new Map<string, Promise<SearchResponse>>();
 
@@ -51,19 +56,14 @@ function waitForSearch(
   });
 }
 
-async function doSearch(
+export async function searchWithAttempts(
   query: string,
   limit: number,
   signal: AbortSignal | undefined,
+  attempts: readonly SearchAttempt[],
 ): Promise<SearchResponse> {
   signal?.throwIfAborted();
   const operationSignal = requestSignal(config.searchTotalTimeout, signal);
-  const attempts: Array<
-    [string, (attemptSignal: AbortSignal) => Promise<SearchResult[]>]
-  > = shuffledEngines().map((engine) => [
-    engine.name,
-    (attemptSignal) => engine.search(query, attemptSignal),
-  ]);
 
   const errors: string[] = [];
   const engines: string[] = [];
@@ -124,6 +124,18 @@ async function doSearch(
     return { engine: engines.join(" + "), results, warnings: errors };
   }
   throw new Error(errors.join("; "));
+}
+
+async function doSearch(
+  query: string,
+  limit: number,
+  signal: AbortSignal | undefined,
+): Promise<SearchResponse> {
+  const attempts: SearchAttempt[] = shuffledEngines().map((engine) => [
+    engine.name,
+    (attemptSignal) => engine.search(query, attemptSignal),
+  ]);
+  return searchWithAttempts(query, limit, signal, attempts);
 }
 
 export async function searchWeb(

@@ -21,6 +21,26 @@ test("parseDdgLiteHtml: parses result-link anchors and decodes uddg URLs", () =>
   ]);
 });
 
+test("parseDdgLiteHtml: preserves encoding inside decoded target URLs", () => {
+  const html = `
+    <table>
+      <tr><td>
+        <a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fsearch%3Fq%3D100%2525" class="result-link">Encoded URL</a>
+      </td></tr>
+      <tr><td></td><td class="result-snippet">Encoded target.</td></tr>
+      <tr><td>
+        <a href="%" class="result-link">Malformed URL</a>
+      </td></tr>
+    </table>`;
+  assert.deepEqual(parseDdgLiteHtml(html), [
+    {
+      title: "Encoded URL",
+      abstract: "Encoded target.",
+      url: "https://example.com/search?q=100%25",
+    },
+  ]);
+});
+
 test("parseYahooHtml: parses algo-sr blocks and decodes RU= URLs", () => {
   const html = `
     <li class="first">
