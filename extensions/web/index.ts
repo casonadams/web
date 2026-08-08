@@ -21,10 +21,6 @@ export default function (pi: ExtensionAPI): void {
     name: "websearch",
     label: "Web Search",
     description: "Search the web and return a list of result summaries.",
-    promptSnippet: "Search the web for current information",
-    promptGuidelines: [
-      "Use websearch with targeted terms or site:domain queries when primary or official sources are preferable.",
-    ],
     parameters: Type.Object({
       query: Type.String({ description: "Search query" }),
       limit: Type.Optional(
@@ -69,8 +65,6 @@ export default function (pi: ExtensionAPI): void {
     label: "Web Fetch",
     description:
       "Fetch HTML, Markdown, RSS/Atom/XML, JSON, text, or PDF content from a URL and return clean text.",
-    promptSnippet:
-      "Fetch clean HTML, Markdown, XML feed, JSON, text, or PDF content from a URL",
     parameters: Type.Object({
       url: Type.String({ description: "URL to fetch" }),
       offset: Type.Optional(

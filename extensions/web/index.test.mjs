@@ -15,6 +15,14 @@ function registeredTool(name) {
   return tool;
 }
 
+test("tools rely on their schemas instead of duplicating guidance in the system prompt", () => {
+  for (const name of ["websearch", "webfetch"]) {
+    const tool = registeredTool(name);
+    assert.equal(tool.promptSnippet, undefined);
+    assert.equal(tool.promptGuidelines, undefined);
+  }
+});
+
 test("webfetch: throws for invalid URLs so pi marks the result as an error", async () => {
   const tool = registeredTool("webfetch");
   await assert.rejects(
