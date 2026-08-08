@@ -79,7 +79,7 @@ export function responseToText(
   if (
     contentType.includes("xml") ||
     /^\s*<\?xml\b/i.test(body) ||
-    /^\s*<(?:rss|feed|urlset)\b/i.test(body)
+    /^\s*<(?:rss|feed|urlset|sitemapindex)\b/i.test(body)
   ) {
     const xml = extractXml(body, baseUrl);
     return { text: xml ?? body.trim(), extraction: "xml" };

@@ -240,3 +240,27 @@ test("fetchPage: formats RSS feeds and resolves entry links", async (t) => {
   assert.match(page.content, new RegExp(`${address.port}/posts/1`));
   assert.match(page.content, /Useful summary\./);
 });
+
+test("fetchPage: formats XML sitemap indexes with a generic content type", async (t) => {
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "text/plain");
+    response.end(
+      '<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://example.com/pages.xml</loc></sitemap><sitemap><loc>https://example.com/posts.xml</loc></sitemap></sitemapindex>',
+    );
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const page = await fetchPage(
+    `http://127.0.0.1:${address.port}/sitemap.xml`,
+    1,
+    30,
+  );
+  assert.equal(page.extraction, "xml");
+  assert.equal(
+    page.content,
+    "# Sitemap Index\n\n1. https://example.com/pages.xml\n2. https://example.com/posts.xml",
+  );
+});

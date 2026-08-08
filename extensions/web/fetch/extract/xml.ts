@@ -13,12 +13,14 @@ export function extractXml(body: string, baseUrl: string): string | null {
   const document = new DOMParser().parseFromString(body, "text/xml");
   if (!document) return null;
   const root = document.documentElement?.localName?.toLowerCase();
-  if (root === "urlset") {
-    const urls = [...document.querySelectorAll("url > loc")]
+  if (root === "urlset" || root === "sitemapindex") {
+    const selector = root === "urlset" ? "url > loc" : "sitemap > loc";
+    const title = root === "urlset" ? "Sitemap" : "Sitemap Index";
+    const urls = [...document.querySelectorAll(selector)]
       .map((element) => element.textContent?.trim())
       .filter((value): value is string => Boolean(value));
     return urls.length > 0
-      ? `# Sitemap\n\n${urls.map((url, index) => `${index + 1}. ${url}`).join("\n")}`
+      ? `# ${title}\n\n${urls.map((url, index) => `${index + 1}. ${url}`).join("\n")}`
       : null;
   }
   if (root !== "rss" && root !== "feed" && root !== "rdf") return null;
