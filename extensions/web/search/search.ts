@@ -1,7 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { config } from "../config.ts";
 import { requestSignal } from "../http/http.ts";
-import { formatSearchResults } from "../logic.ts";
 import { shuffledEngines } from "./engines/index.ts";
 import type { SearchResult } from "./result.ts";
 import {
@@ -188,4 +187,4 @@ export async function searchWeb(
   }
 }
 
-export { formatSearchResults };
+export { formatSearchResults } from "./format.ts";

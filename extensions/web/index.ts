@@ -43,13 +43,13 @@ export default function (pi: ExtensionAPI): void {
       );
       const warning =
         results.length < limit && warnings.length > 0
-          ? `\n\n[Returned ${results.length} of ${limit} requested results. ${warnings.join("; ")}]`
-          : "";
+          ? `[Returned ${results.length} of ${limit} requested results. ${warnings.join("; ")}]`
+          : undefined;
       return {
         content: [
           {
             type: "text",
-            text: `${formatSearchResults(params.query, results)}${warning}`,
+            text: formatSearchResults(params.query, results, warning),
           },
         ],
         details: {

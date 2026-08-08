@@ -32,9 +32,12 @@ pi -e git:git@github.com:casonadams/web.git
   deduplicated, and annotated with hostname, provider, and useful content
   hints. Explicit `site:` constraints are enforced across every provider.
   GitHub `blob` URLs are converted to raw content URLs when direct fetching
-  is preferable. If the selected engine returns no results, the tool retries
-  conservative query variants with quotes or natural-language filler
-  removed, then moves on to the next randomly selected engine.
+  is preferable. Agent-facing search output caps query, title, and snippet
+  prose and targets an 8 KB total; it drops snippets and then titles when
+  necessary, but never truncates returned URLs. If the selected engine returns
+  no results, the tool retries conservative query variants with quotes or
+  natural-language filler removed, then moves on to the next randomly selected
+  engine.
 
 A text-browser user agent is used because search engines allowlist known
 text browsers (Lynx, w3m, links) while challenging generic clients such as

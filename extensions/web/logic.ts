@@ -1,9 +1,5 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import type { SearchResult } from "./search/result.ts";
-
-export type { SearchResult };
-
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 export type SearchCallArgs = { query: string };
@@ -103,23 +99,4 @@ export function renderFetchResult(
     0,
     0,
   );
-}
-
-// ── Output formatters ─────────────────────────────────────────────────────────
-
-function formatResult(result: SearchResult, index: number): string {
-  const signals = [result.hostname, result.contentHint, result.source].filter(
-    Boolean,
-  );
-  const metadata = signals.length > 0 ? ` (${signals.join(" | ")})` : "";
-  const snippet = result.abstract ? `\n   ${result.abstract}` : "";
-  return `${index + 1}. **${result.title}**${metadata}${snippet}\n   ${result.url}`;
-}
-
-export function formatSearchResults(
-  query: string,
-  results: SearchResult[],
-): string {
-  if (!results.length) return `No results found for: ${query}`;
-  return `**Search results for:** ${query}\n\n${results.map(formatResult).join("\n\n")}`;
 }
