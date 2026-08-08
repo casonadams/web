@@ -19,15 +19,21 @@ function registeredTool(name) {
   return tool;
 }
 
-test("tools rely on their schemas instead of duplicating guidance in the system prompt", () => {
-  for (const name of ["websearch", "webfetch"]) {
-    const tool = registeredTool(name);
-    assert.equal(tool.promptSnippet, undefined);
-    assert.equal(tool.promptGuidelines, undefined);
-  }
+test("tools provide routing guidance without duplicating schema descriptions", () => {
+  const search = registeredTool("websearch");
+  const fetch = registeredTool("webfetch");
+
+  assert.equal(search.promptSnippet, undefined);
+  assert.deepEqual(search.promptGuidelines, [
+    "Prefer websearch for finding public web pages.",
+  ]);
+  assert.equal(fetch.promptSnippet, undefined);
+  assert.deepEqual(fetch.promptGuidelines, [
+    "Prefer webfetch for reading public URLs; use raw HTTP tools for custom requests and browser tools for JavaScript or interaction.",
+  ]);
 
   assert.match(
-    registeredTool("webfetch").description,
+    fetch.description,
     /HTML, XHTML, Markdown, RSS\/Atom\/RDF feeds, XML sitemaps, JSON, CSV\/TSV, text, or PDF/,
   );
 });
