@@ -64,7 +64,7 @@ export default function (pi: ExtensionAPI): void {
     name: "webfetch",
     label: "Web Fetch",
     description:
-      "Fetch HTML, Markdown, RSS/Atom/XML, JSON, text, or PDF content from a URL and return clean text.",
+      "Fetch HTML, XHTML, Markdown, RSS/Atom/RDF feeds, XML sitemaps, JSON, CSV/TSV, text, or PDF content from a URL and return clean text.",
     parameters: Type.Object({
       url: Type.String({ description: "URL to fetch" }),
       offset: Type.Optional(

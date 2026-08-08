@@ -21,6 +21,11 @@ test("tools rely on their schemas instead of duplicating guidance in the system 
     assert.equal(tool.promptSnippet, undefined);
     assert.equal(tool.promptGuidelines, undefined);
   }
+
+  assert.match(
+    registeredTool("webfetch").description,
+    /HTML, XHTML, Markdown, RSS\/Atom\/RDF feeds, XML sitemaps, JSON, CSV\/TSV, text, or PDF/,
+  );
 });
 
 test("webfetch: throws for invalid URLs so pi marks the result as an error", async () => {
