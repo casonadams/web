@@ -8,14 +8,15 @@ export function resolveMarkdownLinks(
   return markdown
     .split("\n")
     .map((line) => {
-      const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/);
+      const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
       if (fenceMatch?.[1]) {
         const marker = fenceMatch[1][0] ?? "";
         if (!fence) {
           fence = { marker, length: fenceMatch[1].length };
         } else if (
           marker === fence.marker &&
-          fenceMatch[1].length >= fence.length
+          fenceMatch[1].length >= fence.length &&
+          !fenceMatch[2]?.trim()
         ) {
           fence = undefined;
         }

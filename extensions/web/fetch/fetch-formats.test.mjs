@@ -7,6 +7,20 @@ import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;
 
+test("fetchPage: detects a UTF-16 BOM without a declared charset", async (t) => {
+  const server = createServer((_request, response) => {
+    response.setHeader("content-type", "text/plain");
+    response.end(Buffer.from([0xff, 0xfe, 0x68, 0x00, 0x69, 0x00]));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.onTestFinished(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+  const page = await fetchPage(`http://127.0.0.1:${address.port}/text`, 1, 10);
+  assert.equal(page.content, "hi");
+});
+
 test("fetchPage: resolves relative Markdown links outside code fences", async (t) => {
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "text/markdown");
@@ -67,6 +81,7 @@ test("fetchPage: preserves links inside mixed Markdown fences", async (t) => {
     response.end(
       [
         "```md",
+        "```not-a-closing-fence",
         "~~~",
         "[Example](./leave-this-relative.md)",
         "```",
@@ -117,6 +132,13 @@ it.each([
     path: "/data.tsv",
     body: "name\tage\nAlice\t30\n",
     expected: [/\| name \| age \|/, /\| Alice \| 30 \|/],
+  },
+  {
+    name: "CSV with CR-only records",
+    contentType: "text/csv",
+    path: "/data.csv",
+    body: "name,age\rAlice,30\rBob,25\r",
+    expected: [/\| name \| age \|/, /\| Alice \| 30 \|/, /\| Bob \| 25 \|/],
   },
 ])("fetchPage: formats $name as a Markdown table", async (fixture) => {
   const baseUrl = await startTestServer((_request, response) => {

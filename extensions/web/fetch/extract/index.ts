@@ -4,6 +4,15 @@ import { extractHtml } from "./html.ts";
 import { resolveMarkdownLinks } from "./markdown.ts";
 import { extractXml } from "./xml.ts";
 
+function charsetFromBom(bytes: Uint8Array): string | undefined {
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return "utf-8";
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return "utf-16le";
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return "utf-16be";
+  return undefined;
+}
+
 function charsetFromHtml(bytes: Uint8Array): string | undefined {
   const head = new TextDecoder("ascii").decode(bytes.subarray(0, 4096));
   return (
@@ -14,6 +23,7 @@ function charsetFromHtml(bytes: Uint8Array): string | undefined {
 
 export function decodeBody(bytes: Uint8Array, contentType: string): string {
   const charset =
+    charsetFromBom(bytes) ??
     contentType.match(/charset\s*=\s*["']?([^\s;"']+)/i)?.[1] ??
     charsetFromHtml(bytes) ??
     "utf-8";

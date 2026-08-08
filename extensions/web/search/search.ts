@@ -27,7 +27,12 @@ type SearchAttempt = readonly [
 ];
 
 const MAX_BACKOFF_MS = 5000;
-const inFlightSearches = new Map<string, Promise<SearchResponse>>();
+interface InFlightSearch {
+  promise: Promise<SearchResponse>;
+  controller: AbortController;
+  waiters: number;
+}
+const inFlightSearches = new Map<string, InFlightSearch>();
 
 // Serializes the start of searches so bursts are spaced out by
 // config.searchMinIntervalMs, independent of how the caller paces them.
@@ -58,10 +63,15 @@ function throttleSearchStart(signal: AbortSignal | undefined): Promise<void> {
 
 export function retryAfterMs(error: unknown): number | undefined {
   if (!(error instanceof Error)) return undefined;
-  const match = error.message.match(/retry-after:\s*(\d+)/i);
-  if (!match) return undefined;
-  const ms = Number(match[1]) * 1000;
-  return Number.isFinite(ms) ? Math.min(ms, MAX_BACKOFF_MS) : undefined;
+  const value = error.message.match(/retry-after:\s*([^)]+)/i)?.[1]?.trim();
+  if (!value) return undefined;
+  const seconds = Number(value);
+  const ms = Number.isFinite(seconds)
+    ? seconds * 1000
+    : Date.parse(value) - Date.now();
+  return Number.isFinite(ms)
+    ? Math.max(0, Math.min(ms, MAX_BACKOFF_MS))
+    : undefined;
 }
 
 function searchKey(query: string, limit: number): string {
@@ -73,6 +83,7 @@ function waitForSearch(
   signal: AbortSignal | undefined,
 ): Promise<SearchResponse> {
   if (!signal) return promise;
+  signal.throwIfAborted();
   return new Promise((resolve, reject) => {
     const onAbort = () => reject(signal.reason);
     signal.addEventListener("abort", onAbort, { once: true });
@@ -170,19 +181,36 @@ export async function searchWeb(
   signal: AbortSignal | undefined,
   search: SearchFn = doSearch,
 ): Promise<SearchResponse> {
+  signal?.throwIfAborted();
   const key = searchKey(query, limit);
-  const existing = inFlightSearches.get(key);
-  if (existing) return waitForSearch(existing, signal);
-  const promise = (async () => {
-    await throttleSearchStart(signal);
-    return search(query, limit, signal);
-  })();
-  inFlightSearches.set(key, promise);
+  let inFlight = inFlightSearches.get(key);
+  if (!inFlight) {
+    const controller = new AbortController();
+    const promise = (async () => {
+      await throttleSearchStart(controller.signal);
+      return search(query, limit, controller.signal);
+    })();
+    inFlight = { promise, controller, waiters: 0 };
+    const created = inFlight;
+    inFlightSearches.set(key, created);
+    const clear = () => {
+      if (inFlightSearches.get(key) === created) {
+        inFlightSearches.delete(key);
+      }
+    };
+    promise.then(clear, clear);
+  }
+
+  inFlight.waiters += 1;
   try {
-    return await promise;
+    return await waitForSearch(inFlight.promise, signal);
   } finally {
-    if (inFlightSearches.get(key) === promise) {
-      inFlightSearches.delete(key);
+    inFlight.waiters -= 1;
+    if (inFlight.waiters === 0) {
+      if (inFlightSearches.get(key) === inFlight) {
+        inFlightSearches.delete(key);
+      }
+      inFlight.controller.abort();
     }
   }
 }

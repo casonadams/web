@@ -25,12 +25,13 @@ function parseDelimited(text: string, delimiter: string): string[][] {
     } else if (char === delimiter) {
       row.push(field);
       field = "";
-    } else if (char === "\n") {
+    } else if (char === "\n" || char === "\r") {
       row.push(field);
       rows.push(row);
       row = [];
       field = "";
-    } else if (char !== "\r") {
+      if (char === "\r" && text[i + 1] === "\n") i += 1;
+    } else {
       field += char;
     }
   }
@@ -46,7 +47,7 @@ function truncate(value: string, max: number): string {
 }
 
 function escapeCell(value: string): string {
-  return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
+  return value.replace(/\|/g, "\\|").replace(/[\r\n]/g, " ");
 }
 
 /** Format CSV/TSV as a compact Markdown table, bounded to avoid context bloat. */

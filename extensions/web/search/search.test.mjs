@@ -20,6 +20,13 @@ it.each([
     expected: 5000,
   },
   {
+    name: "parses retry-after HTTP dates",
+    input: new Error(
+      "HTTP 429 Too Many Requests (retry-after: Wed, 21 Oct 2099 07:28:00 GMT)",
+    ),
+    expected: 5000,
+  },
+  {
     name: "returns undefined without retry-after",
     input: new Error("HTTP 503 Service Unavailable"),
     expected: undefined,
@@ -133,6 +140,56 @@ test("searchWeb: coalesces identical concurrent queries", async () => {
   ]);
   assert.equal(calls, 1);
   assert.equal(a, b);
+});
+
+test("searchWeb: isolates cancellation between coalesced callers", async () => {
+  const previousInterval = config.searchMinIntervalMs;
+  config.searchMinIntervalMs = 0;
+  try {
+    const controller = new AbortController();
+    const reason = new Error("first caller cancelled");
+    let calls = 0;
+    const search = (_query, _limit, signal) => {
+      calls += 1;
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => resolve({ engine: "test", results: [], warnings: [] }),
+          30,
+        );
+        signal.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+          },
+          { once: true },
+        );
+      });
+    };
+    const cancelled = searchWeb(
+      "shared cancellation query",
+      1,
+      controller.signal,
+      search,
+    );
+    const surviving = searchWeb(
+      "shared cancellation query",
+      1,
+      undefined,
+      search,
+    );
+    setTimeout(() => controller.abort(reason), 10);
+
+    await assert.rejects(cancelled, (error) => error === reason);
+    assert.deepEqual(await surviving, {
+      engine: "test",
+      results: [],
+      warnings: [],
+    });
+    assert.equal(calls, 1);
+  } finally {
+    config.searchMinIntervalMs = previousInterval;
+  }
 });
 
 test("searchWeb: does not coalesce queries with different limits", async () => {
