@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import { mergeResults, normalizeResults } from "./result-utils.ts";
 
 test("normalizeResults: canonicalizes URLs and adds selection signals", () => {

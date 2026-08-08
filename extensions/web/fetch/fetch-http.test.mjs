@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { test } from "node:test";
+import { test } from "vitest";
 import { config } from "../config.ts";
 import { fetchBytes } from "../http/http.ts";
 import { fetchPage } from "./fetch.ts";
@@ -14,7 +14,7 @@ test("fetchPage: rejects oversized non-PDF content from headers", async (t) => {
     response.write("oversized");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -34,7 +34,7 @@ test("fetchPage: cancels failed HTTP response bodies", async (t) => {
     response.write("error body that remains open");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -60,7 +60,7 @@ test("fetchBytes: strips caller headers on cross-origin redirects", async (t) =>
     response.end("redirected");
   });
   await new Promise((resolve) => target.listen(0, "127.0.0.1", resolve));
-  t.after(() => target.close());
+  t.onTestFinished(() => target.close());
   const targetAddress = target.address();
   assert.notEqual(targetAddress, null);
   assert.equal(typeof targetAddress, "object");
@@ -72,7 +72,7 @@ test("fetchBytes: strips caller headers on cross-origin redirects", async (t) =>
     response.end();
   });
   await new Promise((resolve) => source.listen(0, "127.0.0.1", resolve));
-  t.after(() => source.close());
+  t.onTestFinished(() => source.close());
   const sourceAddress = source.address();
   assert.notEqual(sourceAddress, null);
   assert.equal(typeof sourceAddress, "object");
@@ -99,7 +99,7 @@ test("fetchBytes: preserves caller headers on same-origin redirects", async (t) 
     response.end("redirected");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -126,7 +126,7 @@ test("fetchBytes: applies one timeout across redirect hops", async (t) => {
     }, 40);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -153,7 +153,7 @@ test("fetchPage: retries one transient HTTP failure", async (t) => {
     response.end("recovered");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -170,7 +170,7 @@ test("fetchBytes: surfaces retry-after in the error message", async (t) => {
     response.end("rate limited");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -195,7 +195,7 @@ test("fetchPage: reports final redirect URL", async (t) => {
     response.end("redirected content");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");

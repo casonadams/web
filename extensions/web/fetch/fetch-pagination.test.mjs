@@ -1,22 +1,17 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
-import { test } from "node:test";
+import { test } from "vitest";
 import { config } from "../config.ts";
+import { startTestServer } from "../test-helpers.mjs";
 import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;
 
-test("fetchPage: reuses prepared pagination across cache hits", async (t) => {
-  const server = createServer((_request, response) => {
+test("fetchPage: reuses prepared pagination across cache hits", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/plain");
     response.end("x".repeat(20_000));
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const url = `http://127.0.0.1:${address.port}/prepared-pagination`;
+  const url = `${baseUrl}/prepared-pagination`;
   const originalEncode = TextEncoder.prototype.encode;
   let encodeCalls = 0;
   TextEncoder.prototype.encode = function (...args) {
@@ -33,49 +28,30 @@ test("fetchPage: reuses prepared pagination across cache hits", async (t) => {
     TextEncoder.prototype.encode = originalEncode;
   }
 });
-test("fetchPage: caps output bytes and keeps pagination available", async (t) => {
-  const server = createServer((_request, response) => {
+test("fetchPage: caps output bytes and keeps pagination available", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/plain");
     response.end("x".repeat(100_000));
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const page = await fetchPage(
-    `http://127.0.0.1:${address.port}/large`,
-    1,
-    2000,
-  );
+  const page = await fetchPage(`${baseUrl}/large`, 1, 2000);
   assert.ok(Buffer.byteLength(page.content) <= 45_000);
   assert.ok(page.nextOffset > 1);
   assert.match(page.content, /Use offset=/);
 });
-test("fetchPage: preserves indentation at page boundaries", async (t) => {
-  const server = createServer((_request, response) => {
+test("fetchPage: preserves indentation at page boundaries", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/plain");
     response.end("header\n  indented\ntail");
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const page = await fetchPage(`http://127.0.0.1:${address.port}/indent`, 2, 1);
+  const page = await fetchPage(`${baseUrl}/indent`, 2, 1);
   assert.match(page.content, /^ {2}indented\n/);
 });
-test("fetchPage: paginates plain text", async (t) => {
-  const server = createServer((_request, response) => {
+test("fetchPage: paginates plain text", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/plain");
     response.end("one\ntwo\nthree\nfour");
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const page = await fetchPage(`http://127.0.0.1:${address.port}/`, 2, 2);
+  const page = await fetchPage(`${baseUrl}/`, 2, 2);
   assert.equal(page.total, 4);
   assert.equal(page.nextOffset, 4);
   assert.match(page.content, /^two\nthree/);

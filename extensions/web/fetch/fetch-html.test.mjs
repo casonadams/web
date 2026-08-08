@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { test } from "node:test";
+import { test } from "vitest";
 import { config } from "../config.ts";
 import { fetchPage } from "./fetch.ts";
 
@@ -14,7 +14,7 @@ test("fetchPage: fetches and converts HTML without lynx", async (t) => {
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -32,7 +32,7 @@ test("fetchPage: extracts XHTML as HTML instead of returning markup", async (t) 
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -54,7 +54,7 @@ test("fetchPage: respects HTML charset and base href", async (t) => {
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -75,7 +75,7 @@ test("fetchPage: auto extracts substantial main HTML content", async (t) => {
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -102,7 +102,7 @@ test("fetchPage: reports JavaScript-only application shells", async (t) => {
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");

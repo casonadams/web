@@ -16,9 +16,13 @@ export function extractXml(body: string, baseUrl: string): string | null {
   if (root === "urlset" || root === "sitemapindex") {
     const selector = root === "urlset" ? "url > loc" : "sitemap > loc";
     const title = root === "urlset" ? "Sitemap" : "Sitemap Index";
-    const urls = [...document.querySelectorAll(selector)]
-      .map((element) => element.textContent?.trim())
-      .filter((value): value is string => Boolean(value));
+    const urls = [
+      ...new Set(
+        [...document.querySelectorAll(selector)]
+          .map((element) => element.textContent?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
     return urls.length > 0
       ? `# ${title}\n\n${urls.map((url, index) => `${index + 1}. ${url}`).join("\n")}`
       : null;

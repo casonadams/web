@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { it, test } from "vitest";
 import { config } from "../config.ts";
 import { retryAfterMs, searchWeb, searchWithAttempts } from "./search.ts";
 
@@ -13,16 +13,24 @@ test("searchWeb: propagates an already-aborted caller signal", async () => {
   );
 });
 
-test("retryAfterMs: parses seconds from an HTTP error message", () => {
-  assert.equal(
-    retryAfterMs(new Error("HTTP 429 Too Many Requests (retry-after: 5)")),
-    5000,
-  );
-  assert.equal(
-    retryAfterMs(new Error("HTTP 503 Service Unavailable")),
-    undefined,
-  );
-  assert.equal(retryAfterMs("not an error"), undefined);
+it.each([
+  {
+    name: "parses retry-after seconds",
+    input: new Error("HTTP 429 Too Many Requests (retry-after: 5)"),
+    expected: 5000,
+  },
+  {
+    name: "returns undefined without retry-after",
+    input: new Error("HTTP 503 Service Unavailable"),
+    expected: undefined,
+  },
+  {
+    name: "returns undefined for non-errors",
+    input: "not an error",
+    expected: undefined,
+  },
+])("retryAfterMs: $name", ({ input, expected }) => {
+  assert.equal(retryAfterMs(input), expected);
 });
 
 test("searchWithAttempts: falls back and reports provider warnings", async () => {

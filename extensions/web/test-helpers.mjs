@@ -1,3 +1,17 @@
+import { createServer } from "node:http";
+import { onTestFinished } from "vitest";
+
+export async function startTestServer(handler) {
+  const server = createServer(handler);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  onTestFinished(() => server.close());
+  const address = server.address();
+  if (!address || typeof address !== "object") {
+    throw new Error("test server did not bind to a TCP port");
+  }
+  return `http://127.0.0.1:${address.port}`;
+}
+
 export function textPdf(text, padding = 0) {
   const stream = `BT /F1 18 Tf 72 720 Td (${text}) Tj ET`;
   const objects = [

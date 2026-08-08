@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import { Response } from "undici";
+import { test } from "vitest";
 import { readLimitedBody } from "./response-body.ts";
 
 test("readLimitedBody: waits for a split PDF signature before selecting a limit", async () => {

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { test } from "node:test";
+import { it, test } from "vitest";
 import { config } from "../config.ts";
+import { startTestServer } from "../test-helpers.mjs";
 import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;
@@ -21,7 +22,7 @@ test("fetchPage: resolves relative Markdown links outside code fences", async (t
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -45,7 +46,7 @@ test("fetchPage: resolves protocol-relative Markdown links", async (t) => {
     response.end("[Asset](//cdn.example.com/asset.txt)");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -75,7 +76,7 @@ test("fetchPage: preserves links inside mixed Markdown fences", async (t) => {
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -98,44 +99,35 @@ test("fetchPage: preserves links inside mixed Markdown fences", async (t) => {
     ),
   );
 });
-test("fetchPage: formats CSV as a Markdown table", async (t) => {
-  const server = createServer((_request, response) => {
-    response.setHeader("content-type", "text/csv");
-    response.end("name,age,city\nAlice,30,NYC\nBob,25,LA\n");
+it.each([
+  {
+    name: "CSV",
+    contentType: "text/csv",
+    path: "/data.csv",
+    body: "name,age,city\nAlice,30,NYC\nBob,25,LA\n",
+    expected: [
+      /\| name \| age \| city \|/,
+      /\| Alice \| 30 \| NYC \|/,
+      /\| Bob \| 25 \| LA \|/,
+    ],
+  },
+  {
+    name: "TSV",
+    contentType: "text/tab-separated-values",
+    path: "/data.tsv",
+    body: "name\tage\nAlice\t30\n",
+    expected: [/\| name \| age \|/, /\| Alice \| 30 \|/],
+  },
+])("fetchPage: formats $name as a Markdown table", async (fixture) => {
+  const baseUrl = await startTestServer((_request, response) => {
+    response.setHeader("content-type", fixture.contentType);
+    response.end(fixture.body);
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const page = await fetchPage(
-    `http://127.0.0.1:${address.port}/data.csv`,
-    1,
-    30,
-  );
+  const page = await fetchPage(`${baseUrl}${fixture.path}`, 1, 30);
   assert.equal(page.extraction, "csv");
-  assert.match(page.content, /\| name \| age \| city \|/);
-  assert.match(page.content, /\| Alice \| 30 \| NYC \|/);
-  assert.match(page.content, /\| Bob \| 25 \| LA \|/);
-});
-test("fetchPage: formats TSV as a Markdown table", async (t) => {
-  const server = createServer((_request, response) => {
-    response.setHeader("content-type", "text/tab-separated-values");
-    response.end("name\tage\nAlice\t30\n");
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const page = await fetchPage(
-    `http://127.0.0.1:${address.port}/data.tsv`,
-    1,
-    30,
-  );
-  assert.equal(page.extraction, "csv");
-  assert.match(page.content, /\| name \| age \|/);
-  assert.match(page.content, /\| Alice \| 30 \|/);
+  for (const expected of fixture.expected) {
+    assert.match(page.content, expected);
+  }
 });
 test("fetchPage: parses quoted CSV fields and escaped quotes", async (t) => {
   const server = createServer((_request, response) => {
@@ -143,7 +135,7 @@ test("fetchPage: parses quoted CSV fields and escaped quotes", async (t) => {
     response.end('name,note\nAlice,"hello, world"\nBob,"say ""hi"""\n');
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -163,7 +155,7 @@ test("fetchPage: truncates large CSV to avoid context bloat", async (t) => {
     response.end(rows.join("\n"));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -182,7 +174,7 @@ test("fetchPage: handles a large CSV without throwing", async (t) => {
     response.end(rows.join("\n"));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -202,7 +194,7 @@ test("fetchPage: prefers Atom alternate links over self links", async (t) => {
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -225,7 +217,7 @@ test("fetchPage: formats RSS feeds and resolves entry links", async (t) => {
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -241,15 +233,15 @@ test("fetchPage: formats RSS feeds and resolves entry links", async (t) => {
   assert.match(page.content, /Useful summary\./);
 });
 
-test("fetchPage: formats XML sitemap indexes with a generic content type", async (t) => {
+test("fetchPage: formats and deduplicates XML sitemap indexes", async (t) => {
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "text/plain");
     response.end(
-      '<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://example.com/pages.xml</loc></sitemap><sitemap><loc>https://example.com/posts.xml</loc></sitemap></sitemapindex>',
+      '<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://example.com/pages.xml</loc></sitemap><sitemap><loc>https://example.com/posts.xml</loc></sitemap><sitemap><loc>https://example.com/pages.xml</loc></sitemap></sitemapindex>',
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");

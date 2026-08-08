@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import { parseDdgLiteHtml } from "./engines/ddg-lite.ts";
 import { parseYahooHtml } from "./engines/yahoo.ts";
 

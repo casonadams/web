@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { test } from "node:test";
+import { test } from "vitest";
 import { config } from "../config.ts";
 import { fetchPage } from "./fetch.ts";
 
@@ -14,7 +14,7 @@ test("fetchPage: reuses a bounded extraction cache for pagination", async (t) =>
     response.end("one\ntwo\nthree\nfour");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -34,7 +34,7 @@ test("fetchPage: coalesces concurrent extraction cache misses", async (t) => {
     }, 20);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -57,7 +57,7 @@ test("fetchPage: isolates cancellation between concurrent waiters", async (t) =>
     }, 30);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -85,7 +85,7 @@ test("fetchPage: recovers after all in-flight waiters cancel", async (t) => {
     }, 20);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -104,7 +104,7 @@ test("fetchPage: honors cancellation on cache hits", async (t) => {
     response.end("cached result");
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { test } from "node:test";
 import { Worker } from "node:worker_threads";
+import { test } from "vitest";
 import { config } from "../config.ts";
 import { textPdf } from "../test-helpers.mjs";
 import { fetchPage } from "./fetch.ts";
@@ -14,7 +14,7 @@ test("fetchPage: extracts text from PDFs", async (t) => {
     response.end(textPdf("Hello from PDF"));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -39,7 +39,7 @@ test("fetchPage: limits concurrent PDF workers", async (t) => {
     response.end(pdf);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -80,7 +80,7 @@ test("fetchPage: waits for PDF worker termination", async (t) => {
     response.end(pdf);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -114,7 +114,7 @@ test("fetchPage: bounds PDF extraction time", async (t) => {
     response.end(textPdf("Slow PDF"));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
@@ -135,7 +135,7 @@ test("fetchPage: applies the larger PDF download limit", async (t) => {
     response.end(pdf);
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => server.close());
+  t.onTestFinished(() => server.close());
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
