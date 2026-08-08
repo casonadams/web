@@ -16,7 +16,14 @@ export interface SearchResponse {
   warnings: string[];
 }
 
+type SearchFn = (
+  query: string,
+  limit: number,
+  signal: AbortSignal | undefined,
+) => Promise<SearchResponse>;
+
 const MAX_BACKOFF_MS = 5000;
+const inFlightSearches = new Map<string, Promise<SearchResponse>>();
 
 export function retryAfterMs(error: unknown): number | undefined {
   if (!(error instanceof Error)) return undefined;
@@ -26,7 +33,25 @@ export function retryAfterMs(error: unknown): number | undefined {
   return Number.isFinite(ms) ? Math.min(ms, MAX_BACKOFF_MS) : undefined;
 }
 
-export async function searchWeb(
+function searchKey(query: string, limit: number): string {
+  return `${limit}:${query}`;
+}
+
+function waitForSearch(
+  promise: Promise<SearchResponse>,
+  signal: AbortSignal | undefined,
+): Promise<SearchResponse> {
+  if (!signal) return promise;
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", onAbort);
+    });
+  });
+}
+
+async function doSearch(
   query: string,
   limit: number,
   signal: AbortSignal | undefined,
@@ -99,6 +124,26 @@ export async function searchWeb(
     return { engine: engines.join(" + "), results, warnings: errors };
   }
   throw new Error(errors.join("; "));
+}
+
+export async function searchWeb(
+  query: string,
+  limit: number,
+  signal: AbortSignal | undefined,
+  search: SearchFn = doSearch,
+): Promise<SearchResponse> {
+  const key = searchKey(query, limit);
+  const existing = inFlightSearches.get(key);
+  if (existing) return waitForSearch(existing, signal);
+  const promise = search(query, limit, signal);
+  inFlightSearches.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    if (inFlightSearches.get(key) === promise) {
+      inFlightSearches.delete(key);
+    }
+  }
 }
 
 export { formatSearchResults };
