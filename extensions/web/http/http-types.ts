@@ -6,6 +6,8 @@ export interface FetchTextOptions {
   retries?: number;
   signal?: AbortSignal;
   headers?: Record<string, string>;
+  method?: "GET" | "POST";
+  body?: string;
 }
 
 export interface BinaryResponse {

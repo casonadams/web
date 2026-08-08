@@ -27,8 +27,9 @@ pi -e git:git@github.com:casonadams/web.git
   and a final output byte cap. It does not start a subprocess. Image-only PDFs
   report that OCR is required.
 - **`websearch`** fetches search-engine HTML directly with Node's `fetch`
-  using a text-browser user agent, and randomly selects among DuckDuckGo
-  Lite and Yahoo as the provider. Results are normalized,
+  using a text-browser user agent for HTML providers, and randomly selects
+  among DuckDuckGo Lite, Firecrawl's keyless search endpoint, and Yahoo as the
+  provider. Results are normalized,
   deduplicated, and annotated with hostname, provider, and useful content
   hints. Explicit `site:` constraints are enforced across every provider.
   GitHub `blob` URLs are converted to raw content URLs when direct fetching
@@ -39,10 +40,12 @@ pi -e git:git@github.com:casonadams/web.git
   natural-language filler removed, then moves on to the next randomly selected
   engine.
 
-A text-browser user agent is used because search engines allowlist known
-text browsers (Lynx, w3m, links) while challenging generic clients such as
-curl and headless browsers. The Lynx user-agent string is sent, but no lynx
-binary is required.
+A text-browser user agent is used for HTML providers because search engines
+allowlist known text browsers (Lynx, w3m, links) while challenging generic
+clients such as curl and headless browsers. The Lynx user-agent string is sent,
+but no lynx binary is required. Firecrawl accepts keyless requests with daily
+per-IP request and credit limits and returns HTTP 429 when either is exhausted;
+the search falls back to another randomized provider.
 
 `webfetch` blocks loopback, private, link-local, reserved, and other non-public
 addresses by default, including every redirect target. Set

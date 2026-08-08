@@ -32,6 +32,8 @@ async function fetchWithRetries(
     let response: Response | undefined;
     try {
       response = await fetch(url, {
+        method: options.method,
+        body: options.body,
         redirect: "manual",
         signal: requestSignal(options.timeoutSec, options.signal),
         dispatcher: options.dispatcher,

@@ -2,10 +2,44 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "vitest";
 import { config } from "../config.ts";
-import { fetchBytes } from "../http/http.ts";
+import { fetchBytes, fetchText } from "../http/http.ts";
 import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;
+
+test("fetchText: sends a POST body", async (t) => {
+  let requestMethod;
+  let requestBody = "";
+  const server = createServer((request, response) => {
+    requestMethod = request.method;
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      requestBody += chunk;
+    });
+    request.on("end", () => {
+      response.setHeader("content-type", "application/json");
+      response.end('{"success":true}');
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.onTestFinished(() => server.close());
+  const address = server.address();
+  assert.notEqual(address, null);
+  assert.equal(typeof address, "object");
+
+  await fetchText(`http://127.0.0.1:${address.port}/search`, {
+    timeoutSec: 1,
+    maxBytes: 1000,
+    allowPrivateNetwork: true,
+    retries: 0,
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: '{"query":"topic"}',
+  });
+
+  assert.equal(requestMethod, "POST");
+  assert.equal(requestBody, '{"query":"topic"}');
+});
 
 test("fetchPage: rejects oversized non-PDF content from headers", async (t) => {
   const server = createServer((_request, response) => {
