@@ -61,7 +61,9 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
       .filter(Boolean)
       .join("\n\n");
   } finally {
-    await pdf.destroy();
+    if (typeof pdf.destroy === "function") {
+      await pdf.destroy();
+    }
   }
 }
 
