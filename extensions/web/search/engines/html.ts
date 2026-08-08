@@ -11,6 +11,7 @@ export async function searchHtml(
   parse: (html: string) => SearchResult[],
   query: string,
   signal: AbortSignal,
+  headers: Record<string, string> = { "user-agent": LYNX_UA },
 ): Promise<SearchResult[]> {
   const queries = [query, ...relaxedSearchQueries(query)];
   for (const candidate of queries) {
@@ -20,7 +21,7 @@ export async function searchHtml(
       allowPrivateNetwork: config.allowPrivateNetwork,
       retries: config.httpRetries,
       signal,
-      headers: { "user-agent": LYNX_UA },
+      headers,
     });
     const results = parse(response.body);
     if (results.length > 0) return results;

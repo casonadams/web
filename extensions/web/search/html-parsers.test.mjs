@@ -1,7 +1,38 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { BRAVE_CHROME_UA, parseBraveHtml } from "./engines/brave.ts";
 import { parseDdgLiteHtml } from "./engines/ddg-lite.ts";
 import { parseYahooHtml } from "./engines/yahoo.ts";
+
+test("parseBraveHtml: parses top-level web snippets", () => {
+  const html = `
+    <div class="snippet result" data-type="web" data-pos="1">
+      <a href="https://example.com/path">
+        <div class="title">Example <strong>Title</strong></div>
+      </a>
+      <div class="content">A useful <strong>snippet</strong>.</div>
+      <div class="snippet"><a href="https://example.com/nested">Nested result</a></div>
+    </div>
+    <div class="snippet" data-type="web" data-pos="2">
+      <a href="https://example.org/"><div class="title">No description</div></a>
+    </div>
+    <div class="snippet" data-type="news" data-pos="3">
+      <a href="https://example.net/"><div class="title">News result</div></a>
+    </div>`;
+  assert.deepEqual(parseBraveHtml(html), [
+    {
+      title: "Example Title",
+      abstract: "A useful snippet.",
+      url: "https://example.com/path",
+    },
+    {
+      title: "No description",
+      abstract: "",
+      url: "https://example.org/",
+    },
+  ]);
+  assert.match(BRAVE_CHROME_UA, /Chrome\/\d+/);
+});
 
 test("parseDdgLiteHtml: parses result-link anchors and decodes uddg URLs", () => {
   const html = `

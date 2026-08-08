@@ -27,11 +27,12 @@ pi -e git:git@github.com:casonadams/web.git
   and a final output byte cap. It does not start a subprocess. Image-only PDFs
   report that OCR is required.
 - **`websearch`** fetches search-engine HTML directly with Node's `fetch`
-  using a text-browser user agent for HTML providers, and randomly selects
-  among DuckDuckGo Lite, Firecrawl's keyless search endpoint, and Yahoo as the
-  provider. Results are normalized,
-  deduplicated, and annotated with hostname, provider, and useful content
-  hints. Explicit `site:` constraints are enforced across every provider.
+  and randomly selects among Brave Search, DuckDuckGo Lite, Firecrawl's keyless
+  search endpoint, and Yahoo as the provider. Brave receives a Chrome user
+  agent; the other HTML providers receive a text-browser user agent. Results
+  are normalized, deduplicated, and annotated with hostname, provider, and
+  useful content hints. Explicit `site:` constraints are enforced across every
+  provider.
   GitHub `blob` URLs are converted to raw content URLs when direct fetching
   is preferable. Agent-facing search output caps query, title, and snippet
   prose and targets an 8 KB total; it drops snippets and then titles when
@@ -40,11 +41,11 @@ pi -e git:git@github.com:casonadams/web.git
   natural-language filler removed, then moves on to the next randomly selected
   engine.
 
-A text-browser user agent is used for HTML providers because search engines
-allowlist known text browsers (Lynx, w3m, links) while challenging generic
-clients such as curl and headless browsers. The Lynx user-agent string is sent,
-but no lynx binary is required. Firecrawl accepts keyless requests with daily
-per-IP request and credit limits and returns HTTP 429 when either is exhausted;
+Brave Search receives a Windows Chrome user-agent string and browser-style
+request headers. The other HTML providers receive a Lynx user-agent string
+because they allowlist known text browsers while challenging generic clients
+such as curl and headless browsers. No browser or lynx binary is required.
+Firecrawl accepts keyless requests with daily per-IP request and credit limits and returns HTTP 429 when either is exhausted;
 the search falls back to another randomized provider.
 
 `webfetch` blocks loopback, private, link-local, reserved, and other non-public
@@ -74,6 +75,7 @@ subprocess or an external browser.
 | `WEB_SEARCH_TIMEOUT` | `12` | Timeout per search provider in seconds |
 | `WEB_SEARCH_TOTAL_TIMEOUT` | `30` | End-to-end timeout for all search providers in seconds |
 | `WEB_SEARCH_BACKOFF_MS` | `500` | Delay between engine attempts after a failure; a `Retry-After` header overrides it |
+| `WEB_SEARCH_MIN_INTERVAL_MS` | `1000` | Minimum delay between the starts of separate search calls |
 | `WEB_SEARCH_MAX_BYTES` | `2000000` | Maximum search response size |
 | `WEB_FETCH_TIMEOUT` | `8` | End-to-end network timeout, including retries and redirects, in seconds |
 | `WEB_EXTRACTION_TIMEOUT` | `15` | PDF extraction timeout in seconds, including queue time |
