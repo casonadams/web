@@ -75,7 +75,7 @@ subprocess or an external browser.
 | `WEB_SEARCH_TIMEOUT` | `12` | Timeout per search provider in seconds |
 | `WEB_SEARCH_TOTAL_TIMEOUT` | `30` | End-to-end timeout for all search providers in seconds |
 | `WEB_SEARCH_BACKOFF_MS` | `500` | Delay between engine attempts after a failure; a `Retry-After` header overrides it |
-| `WEB_SEARCH_MIN_INTERVAL_MS` | `1000` | Minimum delay between the starts of separate search calls |
+| `WEB_SEARCH_MIN_INTERVAL_MS` | `2000` | Minimum delay between the starts of separate search calls |
 | `WEB_SEARCH_MAX_BYTES` | `2000000` | Maximum search response size |
 | `WEB_FETCH_TIMEOUT` | `8` | End-to-end network timeout, including retries and redirects, in seconds |
 | `WEB_EXTRACTION_TIMEOUT` | `15` | PDF extraction timeout in seconds, including queue time |

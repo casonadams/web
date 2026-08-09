@@ -3,7 +3,7 @@ const DEFAULT_CONFIG = {
   searchTimeout: 12,
   searchTotalTimeout: 30,
   searchBackoffMs: 500,
-  searchMinIntervalMs: 1000,
+  searchMinIntervalMs: 2000,
   fetchTimeout: 8,
   extractionTimeout: 15,
   pdfWorkerConcurrency: 2,
