@@ -4,6 +4,9 @@
   "private": false,
   "type": "module",
   "description": "Web search and content fetching tools for pi.",
+  "license": "MIT",
+  "author": "Cason Adams",
+  "packageManager": "pnpm@10.26.1",
   "keywords": [
     "pi-package",
     "pi-extension",
@@ -12,10 +15,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/casonadams/web.git"
+    "url": "git+https://github.com/casonadams/web.git"
   },
   "engines": {
-    "node": ">=23.6"
+    "node": ">=24"
   },
   "scripts": {
     "format": "biome format --write .",

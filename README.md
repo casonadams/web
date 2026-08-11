@@ -6,13 +6,13 @@ Both are implemented in TypeScript and run without a subprocess.
 ## Install
 
 ```bash
-pi install git:git@github.com:casonadams/web.git
+pi install git:github.com/casonadams/web
 ```
 
 For a one-off run:
 
 ```bash
-pi -e git:git@github.com:casonadams/web.git
+pi -e git:github.com/casonadams/web
 ```
 
 ## How it works
@@ -51,7 +51,7 @@ the search falls back to another randomized provider.
 `webfetch` blocks loopback, private, link-local, reserved, and other non-public
 addresses by default, including every redirect target. Set
 `WEB_ALLOW_PRIVATE_NETWORK=true` only when intentionally fetching local
-services. The user also gates calls through the `guard` extension.
+services.
 
 ## Dependencies
 
@@ -113,6 +113,15 @@ automatic/full HTML extraction, charset and base-URL handling, redirects,
 private-network blocking, transient retries, bounded caching and output,
 content-aware size limits, Markdown links, XML feeds, PDF text/metadata/links,
 and pagination.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as
+described in [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE)
 
 ## Research notes
 
