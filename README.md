@@ -1,7 +1,12 @@
 # Web Extension
 
-A pi extension package that provides two tools: `websearch` and `webfetch`.
-Both are implemented in TypeScript and run without a subprocess.
+A pi extension package with two tools:
+
+- **`websearch`** searches the web and returns result summaries.
+- **`webfetch`** fetches a URL and returns its content as clean text.
+
+Both are TypeScript and need no subprocess, browser, or API key. For anything
+beyond that, read the code under `extensions/web/`.
 
 ## Install
 
@@ -15,57 +20,17 @@ For a one-off run:
 pi -e git:github.com/casonadams/web
 ```
 
-## How it works
+## Supported content
 
-- **`webfetch`** uses Node's built-in `fetch`, limits the downloaded response,
-  extracts meaningful HTML with semantic `<main>`/`<article>` elements or
-  Mozilla Readability, converts the selected HTML with `html-to-text`, extracts
-  text-based PDFs with metadata and links using `unpdf`, resolves relative
-  Markdown links, formats RSS/Atom feeds and sitemaps, formats CSV/TSV as a
-  bounded Markdown table, and formats JSON and plain text. It respects declared
-  and HTML character encodings, HTML `<base href>`, redirects, line pagination,
-  and a final output byte cap. It does not start a subprocess. Image-only PDFs
-  report that OCR is required.
-- **`websearch`** fetches search-engine HTML directly with Node's `fetch`
-  and randomly selects among Brave Search, DuckDuckGo Lite, Firecrawl's keyless
-  search endpoint, and Yahoo as the provider. Brave receives a Chrome user
-  agent; the other HTML providers receive a text-browser user agent. Results
-  are normalized, deduplicated, and annotated with hostname, provider, and
-  useful content hints. Explicit `site:` constraints are enforced across every
-  provider.
-  GitHub `blob` URLs are converted to raw content URLs when direct fetching
-  is preferable. Agent-facing search output caps query, title, and snippet
-  prose and targets an 8 KB total; it drops snippets and then titles when
-  necessary, but never truncates returned URLs. If the selected engine returns
-  no results, the tool retries conservative query variants with quotes or
-  natural-language filler removed, then moves on to the next randomly selected
-  engine.
+`webfetch` handles HTML, Markdown, JSON, CSV/TSV, XML, RSS/Atom feeds, sitemaps,
+text-based PDFs, and plain text. It takes `mode: "auto" | "main" | "full"` to
+choose between focused and whole-page HTML extraction.
 
-Brave Search receives a Windows Chrome user-agent string and browser-style
-request headers. The other HTML providers receive a Lynx user-agent string
-because they allowlist known text browsers while challenging generic clients
-such as curl and headless browsers. No browser or lynx binary is required.
-Firecrawl accepts keyless requests with daily per-IP request and credit limits and returns HTTP 429 when either is exhausted;
-the search falls back to another randomized provider.
+`websearch` rotates across several keyless providers and falls back to the next
+one when a provider fails or returns nothing.
 
-`webfetch` blocks loopback, private, link-local, reserved, and other non-public
-addresses by default, including every redirect target. Set
-`WEB_ALLOW_PRIVATE_NETWORK=true` only when intentionally fetching local
-services.
-
-## Dependencies
-
-Runtime dependencies are declared in `package.json`:
-
-- `@mozilla/readability` for article and documentation extraction.
-- `linkedom` for the HTML DOM used by Readability.
-- `html-to-text` for structured text conversion.
-- `unpdf` for extracting text, metadata, and links from PDFs with a bundled
-  PDF.js build.
-- `ipaddr.js` for private and non-public network address classification.
-
-Install the dependencies with `pnpm install`. Neither tool requires a
-subprocess or an external browser.
+Non-public addresses (loopback, private, link-local, reserved) are blocked by
+default, including on redirects. See [SECURITY.md](SECURITY.md).
 
 ## Configuration
 
@@ -91,28 +56,17 @@ subprocess or an external browser.
 | `WEB_FETCH_CACHE_MAX_BYTES` | `20000000` | Maximum total extracted cache text |
 | `WEB_REGION` | `wt-wt` | DuckDuckGo region code, such as `us-en` |
 
-`webfetch` supports `mode: "auto" | "main" | "full"` for HTML. `auto` uses
-substantial main content when available and safely falls back to the complete
-page. `main` requires successful focused extraction. `full` always includes the
-whole body, including navigation and sidebars. Focused results state that
-`mode="full"` can recover omitted surrounding content.
-
 Search results are intentionally not cached, so repeated calls always contact
-the configured providers.
+the providers.
 
-## Testing
+## Development
 
 ```bash
+pnpm install
 pnpm lint
 pnpm test
 pnpm typecheck
 ```
-
-The web tests cover search-engine HTML parsing, URL validation, native fetching,
-automatic/full HTML extraction, charset and base-URL handling, redirects,
-private-network blocking, transient retries, bounded caching and output,
-content-aware size limits, Markdown links, XML feeds, PDF text/metadata/links,
-and pagination.
 
 ## Contributing
 
@@ -122,8 +76,3 @@ described in [SECURITY.md](SECURITY.md).
 ## License
 
 [MIT](LICENSE)
-
-## Research notes
-
-- SearXNG's DuckDuckGo engine docs describe the no-JavaScript endpoint and
-  CAPTCHA detection: https://docs.searxng.org/dev/engines/online/duckduckgo.html

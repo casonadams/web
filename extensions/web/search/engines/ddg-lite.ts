@@ -35,6 +35,8 @@ export function parseDdgLiteHtml(html: string): SearchResult[] {
   return results;
 }
 
+// Endpoint and no-JavaScript behavior per
+// https://docs.searxng.org/dev/engines/online/duckduckgo.html
 export const ddgLiteEngine: SearchEngine = {
   name: "DuckDuckGo Lite",
   search: (query, signal) =>
