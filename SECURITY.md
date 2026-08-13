@@ -1,29 +1,54 @@
 # Security Policy
 
-## Supported versions
+## Supported version
 
-Only the latest commit on `main` receives security fixes.
+Security fixes are made on the latest commit of `main`.
 
-## Reporting a vulnerability
+## Report a vulnerability
 
-Report vulnerabilities privately through GitHub's
+Use GitHub's
 [private vulnerability reporting](https://github.com/casonadams/web/security/advisories/new).
-Please do not open a public issue for a security problem.
+Do not open a public issue for a suspected vulnerability.
 
-Include the affected version or commit, reproduction steps, and the impact you
-observed. Expect an initial response within seven days.
+Include the affected commit, reproduction steps, expected impact, and any known
+mitigations. You should receive an initial response within seven days.
 
-## Scope
+## Security model
 
-This package fetches attacker-influenced URLs on behalf of an agent, so the
-areas below are the most security-relevant:
+This extension fetches and parses untrusted internet content on behalf of a pi
+agent. Its primary protections are:
 
-- **Server-side request forgery.** `webfetch` rejects loopback, private,
-  link-local, reserved, and other non-public destinations, and re-checks every
-  redirect target. Setting `WEB_ALLOW_PRIVATE_NETWORK=true` disables that
-  protection on purpose; reports that rely on it are out of scope.
-- **Credential leakage across redirects.** Request headers must not follow a
-  redirect to a different origin.
-- **Resource exhaustion.** Response size, output size, timeout, and PDF worker
-  limits are documented in `README.md`. A bypass of any of those bounds is in
-  scope.
+- Only HTTP and HTTPS URLs are accepted. URLs containing credentials are
+  rejected.
+- Loopback, private, link-local, reserved, and other non-public addresses are
+  blocked by default. Hostnames are checked during DNS resolution, and every
+  redirect destination is checked again.
+- Caller-supplied request headers are removed before following a cross-origin
+  redirect.
+- Redirects, retries, download sizes, returned output, caches, request time,
+  extraction time, and PDF extraction concurrency are bounded.
+- PDF parsing runs in worker threads so extraction can be terminated without
+  blocking the main process indefinitely.
+
+Setting `WEB_ALLOW_PRIVATE_NETWORK=true` intentionally permits local and private
+network access. Only enable it when the agent and every URL it may fetch are
+trusted.
+
+Fetched content remains untrusted input. This extension extracts text but does
+not verify the accuracy, safety, or intent of that content. It does not execute
+page JavaScript.
+
+## In scope
+
+Examples of security issues worth reporting include:
+
+- reaching a blocked network destination through URL parsing, DNS, redirects,
+  or alternate IP representations;
+- leaking request headers or URL credentials to another origin;
+- bypassing a download, output, timeout, cache, redirect, retry, or PDF worker
+  bound;
+- executing code or accessing local files while parsing remote content; and
+- exposing fetched content or request data outside the tool result.
+
+Reports that require `WEB_ALLOW_PRIVATE_NETWORK=true` solely to reach a private
+address are expected behavior rather than a vulnerability.
