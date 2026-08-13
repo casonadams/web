@@ -3,6 +3,7 @@ import { Worker } from "node:worker_threads";
 import { test } from "vitest";
 import { config } from "../config.ts";
 import { startTestServer, textPdf } from "../test-helpers.mjs";
+import { pdfToText } from "./extract/pdf.ts";
 import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;
@@ -54,6 +55,33 @@ test("fetchPage: limits concurrent PDF workers", async () => {
     config.pdfWorkerConcurrency = previousConcurrency;
   }
 });
+test("pdfToText: rejects work beyond the bounded queue", async () => {
+  const previousConcurrency = config.pdfWorkerConcurrency;
+  const previousQueueLimit = config.pdfWorkerQueueLimit;
+  const previousTimeout = config.extractionTimeout;
+  const controller = new AbortController();
+  config.pdfWorkerConcurrency = 0;
+  config.pdfWorkerQueueLimit = 1;
+  config.extractionTimeout = 0.02;
+
+  const queued = pdfToText(new Uint8Array([1]), controller.signal).catch(
+    () => undefined,
+  );
+  await Promise.resolve();
+  try {
+    await assert.rejects(
+      pdfToText(new Uint8Array([2]), new AbortController().signal),
+      /PDF extraction queue is full/,
+    );
+  } finally {
+    controller.abort(new Error("test cleanup"));
+    await queued.catch(() => undefined);
+    config.pdfWorkerConcurrency = previousConcurrency;
+    config.pdfWorkerQueueLimit = previousQueueLimit;
+    config.extractionTimeout = previousTimeout;
+  }
+});
+
 test("fetchPage: waits for PDF worker termination", async () => {
   const pdf = textPdf("Await worker termination");
   const baseUrl = await startTestServer((_request, response) => {

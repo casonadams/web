@@ -22,6 +22,7 @@ export const config = {
   fetchTimeout: 8,
   extractionTimeout: 15,
   pdfWorkerConcurrency: 2,
+  pdfWorkerQueueLimit: 2,
   region: parseEnvRegion("WEB_REGION", "wt-wt"),
   fetchLimit: 200,
   fetchMaxBytes: 5_000_000,

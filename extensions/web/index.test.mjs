@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import registerWebTools from "./index.ts";
-import { renderFetchResult, renderSearchResult } from "./logic.ts";
+import { renderFetchResult, renderSearchResult } from "./renderers.ts";
 import {
   formatSearchResults,
   MAX_SEARCH_OUTPUT_BYTES,

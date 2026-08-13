@@ -11,7 +11,6 @@ const ENGINES: SearchEngine[] = [
   yahooEngine,
 ];
 
-/** All engines in a random order. */
 export function shuffledEngines(): SearchEngine[] {
   const copy = [...ENGINES];
   for (let i = copy.length - 1; i > 0; i -= 1) {

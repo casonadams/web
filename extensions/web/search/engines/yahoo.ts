@@ -9,7 +9,6 @@ function decodeYahooUrl(href: string): string {
   return ru ? decodeURIComponent(ru) : href;
 }
 
-/** Parse Yahoo Search HTML (`div.algo-sr` + `h3` + `.compText`). */
 export function parseYahooHtml(html: string): SearchResult[] {
   const { document } = parseHTML(html);
   const results: SearchResult[] = [];

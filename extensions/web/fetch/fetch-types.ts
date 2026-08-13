@@ -1,4 +1,5 @@
-export type FetchMode = "auto" | "main" | "full";
+export const FETCH_MODES = ["auto", "main", "full"] as const;
+export type FetchMode = (typeof FETCH_MODES)[number];
 
 type ExtractionKind =
   | "main"

@@ -1,10 +1,10 @@
 import { config } from "../../config.ts";
 import { fetchText } from "../../http/http.ts";
 import type { SearchResult } from "../result.ts";
+import { truncateUtf8 } from "../utf8.ts";
 import type { SearchEngine } from "./types.ts";
 
 const MAX_DESCRIPTION_BYTES = 300;
-const encoder = new TextEncoder();
 
 interface FirecrawlResponse {
   success?: unknown;
@@ -15,21 +15,7 @@ interface FirecrawlResponse {
 }
 
 function compactDescription(value: string): string {
-  const compact = value.replace(/\s+/g, " ").trim();
-  if (encoder.encode(compact).byteLength <= MAX_DESCRIPTION_BYTES) {
-    return compact;
-  }
-
-  const maxContentBytes = MAX_DESCRIPTION_BYTES - 3;
-  let content = "";
-  let bytes = 0;
-  for (const character of compact) {
-    const characterBytes = encoder.encode(character).byteLength;
-    if (bytes + characterBytes > maxContentBytes) break;
-    content += character;
-    bytes += characterBytes;
-  }
-  return `${content.trimEnd()}...`;
+  return truncateUtf8(value.replace(/\s+/g, " ").trim(), MAX_DESCRIPTION_BYTES);
 }
 
 export function parseFirecrawlResponse(body: string): SearchResult[] {

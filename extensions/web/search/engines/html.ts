@@ -5,7 +5,6 @@ import type { SearchResult } from "../result.ts";
 
 const LYNX_UA = "Lynx/2.9.3 libwww-FM/2.14 SSL-MM/1.4.1 OpenSSL/4.0.0";
 
-/** Fetch an HTML search engine, retrying relaxed query variants on empty results. */
 export async function searchHtml(
   url: (query: string) => string,
   parse: (html: string) => SearchResult[],

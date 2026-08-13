@@ -1,4 +1,4 @@
-export interface FetchTextOptions {
+export interface HttpRequestOptions {
   timeoutSec: number;
   maxBytes: number;
   pdfMaxBytes?: number;
@@ -9,6 +9,8 @@ export interface FetchTextOptions {
   method?: "GET" | "POST";
   body?: string;
 }
+
+export type FetchTextOptions = HttpRequestOptions;
 
 export interface BinaryResponse {
   body: Uint8Array;

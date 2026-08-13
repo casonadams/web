@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { createCoalescedOperation } from "../coalesced-operation.ts";
 import { config } from "../config.ts";
 import { requestSignal } from "../http/http.ts";
 import { shuffledEngines } from "./engines/index.ts";
@@ -27,15 +28,7 @@ type SearchAttempt = readonly [
 ];
 
 const MAX_BACKOFF_MS = 5000;
-interface InFlightSearch {
-  promise: Promise<SearchResponse>;
-  controller: AbortController;
-  waiters: number;
-}
-const inFlightSearches = new Map<string, InFlightSearch>();
-
-// Serializes the start of searches so bursts are spaced out by
-// config.searchMinIntervalMs, independent of how the caller paces them.
+const runCoalescedSearch = createCoalescedOperation<string, SearchResponse>();
 let searchStartChain: Promise<void> = Promise.resolve();
 let lastSearchStartMs = 0;
 
@@ -76,21 +69,6 @@ export function retryAfterMs(error: unknown): number | undefined {
 
 function searchKey(query: string, limit: number): string {
   return `${limit}:${query}`;
-}
-
-function waitForSearch(
-  promise: Promise<SearchResponse>,
-  signal: AbortSignal | undefined,
-): Promise<SearchResponse> {
-  if (!signal) return promise;
-  signal.throwIfAborted();
-  return new Promise((resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    promise.then(resolve, reject).finally(() => {
-      signal.removeEventListener("abort", onAbort);
-    });
-  });
 }
 
 export async function searchWithAttempts(
@@ -149,9 +127,8 @@ export async function searchWithAttempts(
         if (backoff > 0) {
           try {
             await delay(backoff, undefined, { signal: operationSignal });
-          } catch {
-            // operationSignal aborted during backoff; the loop's abort check
-            // returns partial results or throws the timeout message.
+          } catch (error) {
+            if (!operationSignal.aborted) throw error;
           }
         }
       }
@@ -181,38 +158,14 @@ export async function searchWeb(
   signal: AbortSignal | undefined,
   search: SearchFn = doSearch,
 ): Promise<SearchResponse> {
-  signal?.throwIfAborted();
-  const key = searchKey(query, limit);
-  let inFlight = inFlightSearches.get(key);
-  if (!inFlight) {
-    const controller = new AbortController();
-    const promise = (async () => {
-      await throttleSearchStart(controller.signal);
-      return search(query, limit, controller.signal);
-    })();
-    inFlight = { promise, controller, waiters: 0 };
-    const created = inFlight;
-    inFlightSearches.set(key, created);
-    const clear = () => {
-      if (inFlightSearches.get(key) === created) {
-        inFlightSearches.delete(key);
-      }
-    };
-    promise.then(clear, clear);
-  }
-
-  inFlight.waiters += 1;
-  try {
-    return await waitForSearch(inFlight.promise, signal);
-  } finally {
-    inFlight.waiters -= 1;
-    if (inFlight.waiters === 0) {
-      if (inFlightSearches.get(key) === inFlight) {
-        inFlightSearches.delete(key);
-      }
-      inFlight.controller.abort();
-    }
-  }
+  return runCoalescedSearch(
+    searchKey(query, limit),
+    signal,
+    async (sharedSignal) => {
+      await throttleSearchStart(sharedSignal);
+      return search(query, limit, sharedSignal);
+    },
+  );
 }
 
 export { formatSearchResults } from "./format.ts";

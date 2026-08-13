@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { Agent, fetch, type Response } from "undici";
 import type {
   BinaryResponse,
-  FetchTextOptions,
+  HttpRequestOptions,
   TextResponse,
 } from "./http-types.ts";
 import { networkError } from "./network-errors.ts";
@@ -14,6 +14,7 @@ import { isRetryableStatus, retryDelay } from "./retry-policy.ts";
 export type {
   BinaryResponse,
   FetchTextOptions,
+  HttpRequestOptions,
   TextResponse,
 } from "./http-types.ts";
 export { requestSignal } from "./request-signal.ts";
@@ -23,9 +24,48 @@ const USER_AGENT =
   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0 Safari/537.36 " +
   "pi-web-extension/1.0";
 
+type RequestOptions = HttpRequestOptions & { dispatcher?: Agent };
+
+const BODY_HEADER_NAMES = new Set([
+  "content-encoding",
+  "content-language",
+  "content-length",
+  "content-location",
+  "content-type",
+  "transfer-encoding",
+]);
+
+function withoutBodyHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  return Object.fromEntries(
+    Object.entries(headers).filter(
+      ([name]) => !BODY_HEADER_NAMES.has(name.toLowerCase()),
+    ),
+  );
+}
+
+function redirectOptions(
+  status: number,
+  currentUrl: URL,
+  nextUrl: URL,
+  options: RequestOptions,
+): RequestOptions {
+  let headers =
+    nextUrl.origin === currentUrl.origin ? options.headers : undefined;
+  const method = options.method ?? "GET";
+  const switchToGet =
+    (status === 303 && method !== "GET") ||
+    ((status === 301 || status === 302) && method === "POST");
+  if (!switchToGet) return { ...options, headers };
+  headers = withoutBodyHeaders(headers);
+  return { ...options, method: "GET", body: undefined, headers };
+}
+
 async function fetchWithRetries(
   url: URL,
-  options: FetchTextOptions & { dispatcher?: Agent },
+  options: RequestOptions,
 ): Promise<Response> {
   const retries = Math.max(0, options.retries ?? 1);
   for (let attempt = 0; ; attempt += 1) {
@@ -67,7 +107,7 @@ async function fetchWithRetries(
 
 async function fetchFollowingRedirects(
   rawUrl: string,
-  options: FetchTextOptions & { dispatcher?: Agent },
+  options: RequestOptions,
 ): Promise<Response> {
   let url = new URL(rawUrl);
   let requestOptions = options;
@@ -79,9 +119,12 @@ async function fetchFollowingRedirects(
     if (!location) return response;
     await response.body?.cancel();
     const nextUrl = new URL(location, url);
-    if (nextUrl.origin !== url.origin && requestOptions.headers) {
-      requestOptions = { ...requestOptions, headers: undefined };
-    }
+    requestOptions = redirectOptions(
+      response.status,
+      url,
+      nextUrl,
+      requestOptions,
+    );
     url = nextUrl;
   }
   throw new Error("request failed: too many redirects");
@@ -89,7 +132,7 @@ async function fetchFollowingRedirects(
 
 export async function fetchBytes(
   url: string,
-  options: FetchTextOptions,
+  options: HttpRequestOptions,
 ): Promise<BinaryResponse> {
   const dispatcher = options.allowPrivateNetwork
     ? undefined
@@ -134,7 +177,7 @@ export async function fetchBytes(
 
 export async function fetchText(
   url: string,
-  options: FetchTextOptions,
+  options: HttpRequestOptions,
 ): Promise<TextResponse> {
   const response = await fetchBytes(url, options);
   return {

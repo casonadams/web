@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { test } from "vitest";
 import { config } from "../config.ts";
 import { fetchBytes, fetchText } from "../http/http.ts";
+import { startTestServer } from "../test-helpers.mjs";
 import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;
@@ -40,6 +41,57 @@ test("fetchText: sends a POST body", async (t) => {
   assert.equal(requestMethod, "POST");
   assert.equal(requestBody, '{"query":"topic"}');
 });
+
+test.each([
+  { status: 301, expectedMethod: "GET", expectedBody: "" },
+  { status: 302, expectedMethod: "GET", expectedBody: "" },
+  { status: 303, expectedMethod: "GET", expectedBody: "" },
+  { status: 307, expectedMethod: "POST", expectedBody: "query=topic" },
+  { status: 308, expectedMethod: "POST", expectedBody: "query=topic" },
+])(
+  "fetchText: applies HTTP semantics for $status redirects",
+  async ({ status, expectedMethod, expectedBody }) => {
+    let redirectedMethod;
+    let redirectedBody = "";
+    let redirectedContentType;
+    const baseUrl = await startTestServer((request, response) => {
+      if (request.url === "/start") {
+        response.writeHead(status, { location: "/target" });
+        response.end();
+        return;
+      }
+      redirectedMethod = request.method;
+      redirectedContentType = request.headers["content-type"];
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => {
+        redirectedBody += chunk;
+      });
+      request.on("end", () => {
+        response.setHeader("content-type", "text/plain");
+        response.end("redirected");
+      });
+    });
+
+    await fetchText(`${baseUrl}/start`, {
+      timeoutSec: 1,
+      maxBytes: 1000,
+      allowPrivateNetwork: true,
+      retries: 0,
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "query=topic",
+    });
+
+    assert.equal(redirectedMethod, expectedMethod);
+    assert.equal(redirectedBody, expectedBody);
+    assert.equal(
+      redirectedContentType,
+      expectedMethod === "POST"
+        ? "application/x-www-form-urlencoded"
+        : undefined,
+    );
+  },
+);
 
 test("fetchPage: rejects oversized non-PDF content from headers", async (t) => {
   const server = createServer((_request, response) => {

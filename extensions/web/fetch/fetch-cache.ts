@@ -1,3 +1,4 @@
+import { createCoalescedOperation } from "../coalesced-operation.ts";
 import { config } from "../config.ts";
 import type { ExtractedResource, FetchMode } from "./fetch-types.ts";
 
@@ -6,14 +7,11 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-interface InFlightResource {
-  promise: Promise<ExtractedResource>;
-  controller: AbortController;
-  waiters: number;
-}
-
 const extractionCache = new Map<string, CacheEntry>();
-const inFlightResources = new Map<string, InFlightResource>();
+const loadCoalescedResource = createCoalescedOperation<
+  string,
+  ExtractedResource
+>();
 let extractionCacheBytes = 0;
 
 export function resourceCacheKey(url: string, mode: FetchMode): string {
@@ -62,20 +60,6 @@ function cacheResource(key: string, resource: ExtractedResource): void {
   extractionCacheBytes += resource.size;
 }
 
-function waitForResource(
-  promise: Promise<ExtractedResource>,
-  signal: AbortSignal | undefined,
-): Promise<ExtractedResource> {
-  if (!signal) return promise;
-  return new Promise((resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    promise.then(resolve, reject).finally(() => {
-      signal.removeEventListener("abort", onAbort);
-    });
-  });
-}
-
 export async function getOrLoadResource(
   key: string,
   signal: AbortSignal | undefined,
@@ -85,34 +69,9 @@ export async function getOrLoadResource(
   const cached = getCachedResource(key);
   if (cached) return cached;
 
-  let inFlight = inFlightResources.get(key);
-  if (!inFlight) {
-    const controller = new AbortController();
-    const promise = load(controller.signal).then((resource) => {
-      cacheResource(key, resource);
-      return resource;
-    });
-    inFlight = { promise, controller, waiters: 0 };
-    const created = inFlight;
-    inFlightResources.set(key, created);
-    const clear = () => {
-      if (inFlightResources.get(key) === created) {
-        inFlightResources.delete(key);
-      }
-    };
-    promise.then(clear, clear);
-  }
-
-  inFlight.waiters += 1;
-  try {
-    return await waitForResource(inFlight.promise, signal);
-  } finally {
-    inFlight.waiters -= 1;
-    if (inFlight.waiters === 0) {
-      if (inFlightResources.get(key) === inFlight) {
-        inFlightResources.delete(key);
-      }
-      inFlight.controller.abort();
-    }
-  }
+  return loadCoalescedResource(key, signal, async (sharedSignal) => {
+    const resource = await load(sharedSignal);
+    cacheResource(key, resource);
+    return resource;
+  });
 }

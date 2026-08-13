@@ -1,37 +1,17 @@
 import type { SearchResult } from "./result.ts";
+import { truncateUtf8, utf8ByteLength } from "./utf8.ts";
 
 const MAX_QUERY_BYTES = 500;
 const MAX_TITLE_BYTES = 200;
 const MAX_SNIPPET_BYTES = 600;
 export const MAX_SEARCH_OUTPUT_BYTES = 8_000;
 
-const encoder = new TextEncoder();
-
-function byteLength(value: string): number {
-  return encoder.encode(value).byteLength;
-}
-
-function truncateText(value: string, maxBytes: number): string {
-  if (byteLength(value) <= maxBytes) return value;
-  const suffix = "...";
-  const contentLimit = maxBytes - byteLength(suffix);
-  let output = "";
-  let bytes = 0;
-  for (const character of value) {
-    const characterBytes = byteLength(character);
-    if (bytes + characterBytes > contentLimit) break;
-    output += character;
-    bytes += characterBytes;
-  }
-  return `${output.trimEnd()}${suffix}`;
-}
-
 function resultTitle(result: SearchResult, index: number): string {
   const signals = [result.hostname, result.contentHint, result.source].filter(
     Boolean,
   );
   const metadata = signals.length > 0 ? ` (${signals.join(" | ")})` : "";
-  return `${index + 1}. **${truncateText(result.title, MAX_TITLE_BYTES)}**${metadata}`;
+  return `${index + 1}. **${truncateUtf8(result.title, MAX_TITLE_BYTES)}**${metadata}`;
 }
 
 function renderResults(
@@ -80,23 +60,23 @@ export function formatSearchResults(
   results: SearchResult[],
   statusNotice?: string,
 ): string {
-  const boundedQuery = truncateText(query, MAX_QUERY_BYTES);
+  const boundedQuery = truncateUtf8(query, MAX_QUERY_BYTES);
   if (!results.length) return `No results found for: ${boundedQuery}`;
 
   const header = `**Search results for:** ${boundedQuery}`;
   const boundedStatus = statusNotice
-    ? truncateText(statusNotice, MAX_QUERY_BYTES)
+    ? truncateUtf8(statusNotice, MAX_QUERY_BYTES)
     : undefined;
   const snippets = results.map((result) =>
-    result.abstract ? truncateText(result.abstract, MAX_SNIPPET_BYTES) : "",
+    result.abstract ? truncateUtf8(result.abstract, MAX_SNIPPET_BYTES) : "",
   );
   let output = renderResults(header, results, snippets, boundedStatus);
   for (let index = snippets.length - 1; index >= 0; index -= 1) {
-    if (byteLength(output) <= MAX_SEARCH_OUTPUT_BYTES) return output;
+    if (utf8ByteLength(output) <= MAX_SEARCH_OUTPUT_BYTES) return output;
     snippets[index] = "";
     output = renderResults(header, results, snippets, boundedStatus);
   }
-  return byteLength(output) <= MAX_SEARCH_OUTPUT_BYTES
+  return utf8ByteLength(output) <= MAX_SEARCH_OUTPUT_BYTES
     ? output
     : renderUrls(header, results, boundedStatus);
 }

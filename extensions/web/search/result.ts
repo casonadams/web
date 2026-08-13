@@ -1,4 +1,3 @@
-/** A single normalized search result from any provider. */
 export interface SearchResult {
   title: string;
   abstract: string;

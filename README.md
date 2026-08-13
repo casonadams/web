@@ -42,8 +42,9 @@ default, including on redirects. See [SECURITY.md](SECURITY.md).
 The tools use fixed timeouts and resource limits: search requests are limited
 to 2 MB, non-PDF fetches to 5 MB, PDFs to 20 MB, and returned text to 45 KB.
 Network fetches time out after 8 seconds, and PDF extraction after 15 seconds.
-Search results are intentionally not cached, so repeated calls always contact
-the providers.
+PDF extraction runs at most two workers with two additional jobs queued. Search
+results are intentionally not cached, so repeated calls always contact the
+providers.
 
 ## Development
 

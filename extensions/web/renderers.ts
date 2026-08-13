@@ -1,30 +1,18 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-// ── Shared types ──────────────────────────────────────────────────────────────
+import type {
+  WebFetchDetails,
+  WebFetchInput,
+  WebSearchDetails,
+  WebSearchInput,
+} from "./tool-contracts.ts";
 
-export type SearchCallArgs = { query: string };
-export type FetchCallArgs = {
-  url: string;
-  mode?: "auto" | "main" | "full";
-};
-export type SearchResultDetails = { count: number; engine?: string };
-export type FetchResultDetails = {
-  sourceUrl: string;
-  finalUrl?: string;
-  extraction?:
-    | "main"
-    | "full"
-    | "pdf"
-    | "json"
-    | "markdown"
-    | "xml"
-    | "csv"
-    | "text";
-};
+type RenderResult = { content?: unknown; details?: unknown };
+type RenderOptions = { isPartial: boolean };
+type RenderContext = { isError?: boolean };
+type TextBlock = { type: "text"; text?: string };
 
-// ── Renderers ─────────────────────────────────────────────────────────────────
-
-export function renderSearchCall(args: SearchCallArgs, theme: Theme) {
+export function renderSearchCall(args: WebSearchInput, theme: Theme): Text {
   return new Text(
     theme.fg("toolTitle", theme.bold("websearch ")) +
       theme.fg("accent", args.query),
@@ -33,40 +21,44 @@ export function renderSearchCall(args: SearchCallArgs, theme: Theme) {
   );
 }
 
+function isTextBlock(value: unknown): value is TextBlock {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "text"
+  );
+}
+
 function errorText(content: unknown): string {
   if (!Array.isArray(content)) return "";
   return content
-    .filter(
-      (block) =>
-        block &&
-        typeof block === "object" &&
-        (block as { type?: string }).type === "text",
-    )
-    .map((block) => (block as { text?: string }).text ?? "")
+    .filter(isTextBlock)
+    .map((block) => block.text ?? "")
     .join("\n")
     .trim();
 }
 
 export function renderSearchResult(
-  result: { content?: unknown; details?: unknown },
-  { isPartial }: { isPartial: boolean },
+  result: RenderResult,
+  { isPartial }: RenderOptions,
   theme: Theme,
-  context?: { isError?: boolean },
-) {
+  context?: RenderContext,
+): Text {
   if (isPartial) return new Text(theme.fg("warning", "Searching..."), 0, 0);
   if (context?.isError) {
     const message = errorText(result.content);
     const label = message ? `search failed: ${message}` : "Search failed";
     return new Text(theme.fg("error", label), 0, 0);
   }
-  const details = result.details as SearchResultDetails | undefined;
+  const details = result.details as WebSearchDetails | undefined;
   const count = details?.count ?? 0;
   const engine = details?.engine ? ` via ${details.engine}` : "";
   const label = `${count} result${count !== 1 ? "s" : ""}${engine}`;
   return new Text(theme.fg("success", label), 0, 0);
 }
 
-export function renderFetchCall(args: FetchCallArgs, theme: Theme) {
+export function renderFetchCall(args: WebFetchInput, theme: Theme): Text {
   return new Text(
     theme.fg("toolTitle", theme.bold("webfetch ")) +
       theme.fg("accent", args.url),
@@ -76,13 +68,13 @@ export function renderFetchCall(args: FetchCallArgs, theme: Theme) {
 }
 
 export function renderFetchResult(
-  result: { details?: unknown },
-  { isPartial }: { isPartial: boolean },
+  result: RenderResult,
+  { isPartial }: RenderOptions,
   theme: Theme,
-  context?: { isError?: boolean },
-) {
+  context?: RenderContext,
+): Text {
   if (isPartial) return new Text(theme.fg("warning", "Fetching..."), 0, 0);
-  const details = result.details as FetchResultDetails | undefined;
+  const details = result.details as WebFetchDetails | undefined;
   const url = details?.sourceUrl;
   if (context?.isError) {
     const label = url ? `fetch failed ${url}` : "Fetch failed";

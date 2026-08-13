@@ -50,7 +50,6 @@ function escapeCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/[\r\n]/g, " ");
 }
 
-/** Format CSV/TSV as a compact Markdown table, bounded to avoid context bloat. */
 export function extractCsv(body: string, delimiter: string): string {
   const rows = parseDelimited(body, delimiter).filter((row) =>
     row.some((cell) => cell.trim() !== ""),

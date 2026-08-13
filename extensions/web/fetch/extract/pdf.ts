@@ -43,6 +43,14 @@ function drainPdfWorkerQueue(): void {
 function acquirePdfWorker(signal: AbortSignal): Promise<() => void> {
   signal.throwIfAborted();
   return new Promise((resolve, reject) => {
+    const queueLimit = Math.max(0, Math.floor(config.pdfWorkerQueueLimit));
+    if (
+      activePdfWorkers >= config.pdfWorkerConcurrency &&
+      pdfWorkerQueue.size >= queueLimit
+    ) {
+      reject(new Error(`PDF extraction queue is full (limit ${queueLimit})`));
+      return;
+    }
     const waiter: PdfWorkerWaiter = {
       signal,
       resolve,
