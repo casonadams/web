@@ -6,7 +6,7 @@ import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;
 
-test("fetchPage: fetches and converts HTML without lynx", async () => {
+test("fetchPage: fetches and converts HTML to text", async () => {
   const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/html; charset=utf-8");
     response.end(
