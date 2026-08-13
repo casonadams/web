@@ -1,12 +1,9 @@
-# Web Extension
+# Web tools for pi
 
-A pi extension package with two tools:
+A pi extension that adds two tools without requiring an API key:
 
-- **`websearch`** searches the web and returns result summaries.
-- **`webfetch`** fetches a URL and returns its content as clean text.
-
-Both are TypeScript and need no subprocess, browser, or API key. For anything
-beyond that, read the code under `extensions/web/`.
+- `websearch` finds public web pages and returns result summaries.
+- `webfetch` reads a public URL and returns clean, paginated text.
 
 ## Install
 
@@ -14,37 +11,34 @@ beyond that, read the code under `extensions/web/`.
 pi install git:github.com/casonadams/web
 ```
 
-For a one-off run:
+To try it without installing:
 
 ```bash
 pi -e git:github.com/casonadams/web
 ```
 
-## Supported content
+## Tools
 
-`webfetch` handles HTML, Markdown, JSON, CSV/TSV, XML, RSS/Atom feeds, sitemaps,
-text-based PDFs, and plain text. It takes `mode: "auto" | "main" | "full"` to
-choose between focused and whole-page HTML extraction.
+### `websearch`
 
-`websearch` rotates across several keyless providers and falls back to the next
-one when a provider fails or returns nothing.
+Searches across several keyless providers and falls back when a provider is
+unavailable or returns no results.
 
-Non-public addresses (loopback, private, link-local, reserved) are blocked by
-default, including on redirects. See [SECURITY.md](SECURITY.md).
+### `webfetch`
+
+Reads HTML, XHTML, Markdown, JSON, CSV/TSV, XML, RSS/Atom/RDF feeds, sitemaps,
+plain text, and text-based PDFs. HTML can be extracted as focused main content
+or as a full page.
+
+Local, private, and other non-public destinations are blocked by default,
+including redirects. See [SECURITY.md](SECURITY.md) for details.
 
 ## Configuration
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `WEB_REGION` | `wt-wt` | DuckDuckGo region code, such as `us-en` |
-| `WEB_ALLOW_PRIVATE_NETWORK` | `false` | Permit local/private destinations |
-
-The tools use fixed timeouts and resource limits: search requests are limited
-to 2 MB, non-PDF fetches to 5 MB, PDFs to 20 MB, and returned text to 45 KB.
-Network fetches time out after 8 seconds, and PDF extraction after 15 seconds.
-PDF extraction runs at most two workers with two additional jobs queued. Search
-results are intentionally not cached, so repeated calls always contact the
-providers.
+| Variable                    | Default | Purpose                                 |
+| --------------------------- | ------- | --------------------------------------- |
+| `WEB_REGION`                | `wt-wt` | DuckDuckGo region code, such as `us-en` |
+| `WEB_ALLOW_PRIVATE_NETWORK` | `false` | Allow local and private destinations    |
 
 ## Development
 
@@ -55,10 +49,8 @@ pnpm test
 pnpm typecheck
 ```
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as
-described in [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report
+security issues privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

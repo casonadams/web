@@ -255,6 +255,26 @@ test("fetchPage: formats RSS feeds and resolves entry links", async (t) => {
   assert.match(page.content, /Useful summary\./);
 });
 
+test("fetchPage: formats RSS 1.0 RDF feeds", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
+    response.setHeader("content-type", "application/rdf+xml");
+    response.end(`<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel rdf:about="/feed"><title>RDF Feed</title></channel>
+  <item rdf:about="/posts/1"><title>First RDF post</title><link>/posts/1</link><dc:date>2026-01-03</dc:date><description>RDF summary.</description></item>
+</rdf:RDF>`);
+  });
+
+  const page = await fetchPage(`${baseUrl}/feed.rdf`, 1, 30);
+
+  assert.equal(page.extraction, "xml");
+  assert.match(page.content, /# Feed: RDF Feed/);
+  assert.match(page.content, /## 1\. First RDF post/);
+  assert.match(page.content, /Date: 2026-01-03/);
+  assert.match(page.content, new RegExp(`${baseUrl}/posts/1`));
+  assert.match(page.content, /RDF summary\./);
+});
+
 test("fetchPage: formats and deduplicates XML sitemap indexes", async (t) => {
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "text/plain");

@@ -9,10 +9,36 @@ function feedSummary(value: string, baseUrl: string): string {
     : trimmed.replace(/\s+/g, " ");
 }
 
+interface XmlElement {
+  localName: string;
+  textContent: string | null;
+  getAttribute(name: string): string | null;
+  querySelectorAll(selectors: string): Iterable<XmlElement>;
+}
+
+function elementName(element: XmlElement): string {
+  return element.localName.split(":").at(-1)?.toLowerCase() ?? "";
+}
+
+function descendantsByName(element: XmlElement, names: string[]): XmlElement[] {
+  const accepted = new Set(names);
+  return [...element.querySelectorAll("*")].filter((descendant) =>
+    accepted.has(elementName(descendant)),
+  );
+}
+
+function firstDescendant(
+  element: XmlElement,
+  names: string[],
+): XmlElement | undefined {
+  return descendantsByName(element, names)[0];
+}
+
 export function extractXml(body: string, baseUrl: string): string | null {
   const document = new DOMParser().parseFromString(body, "text/xml");
-  if (!document) return null;
-  const root = document.documentElement?.localName?.toLowerCase();
+  const rootElement = document?.documentElement;
+  if (!rootElement) return null;
+  const root = elementName(rootElement);
   if (root === "urlset" || root === "sitemapindex") {
     const selector = root === "urlset" ? "url > loc" : "sitemap > loc";
     const title = root === "urlset" ? "Sitemap" : "Sitemap Index";
@@ -29,17 +55,17 @@ export function extractXml(body: string, baseUrl: string): string | null {
   }
   if (root !== "rss" && root !== "feed" && root !== "rdf") return null;
 
+  const entryName = root === "feed" ? "entry" : "item";
+  const entries = descendantsByName(rootElement, [entryName]);
+  const channel = firstDescendant(rootElement, ["channel"]);
+  if (root === "rdf" && !channel && entries.length === 0) return null;
   const feedTitle =
-    document
-      .querySelector("channel > title, feed > title")
-      ?.textContent?.trim() || "Feed";
-  const entries = [
-    ...document.querySelectorAll(root === "feed" ? "entry" : "item"),
-  ];
+    firstDescendant(channel ?? rootElement, ["title"])?.textContent?.trim() ||
+    "Feed";
   const formatted = entries.map((entry, index) => {
     const title =
-      entry.querySelector("title")?.textContent?.trim() || "Untitled";
-    const linkElements = [...entry.querySelectorAll("link")];
+      firstDescendant(entry, ["title"])?.textContent?.trim() || "Untitled";
+    const linkElements = descendantsByName(entry, ["link"]);
     const linkElement =
       linkElements.find((element) => {
         const rel = element.getAttribute("rel")?.trim().toLowerCase();
@@ -50,12 +76,18 @@ export function extractXml(body: string, baseUrl: string): string | null {
       linkElement?.textContent?.trim() ||
       "";
     const link = resolveRelativeUrl(rawLink, baseUrl);
-    const date = entry
-      .querySelector("published, updated, pubDate, date")
-      ?.textContent?.trim();
-    const rawSummary = entry
-      .querySelector("summary, description, content, encoded")
-      ?.textContent?.trim();
+    const date = firstDescendant(entry, [
+      "published",
+      "updated",
+      "pubdate",
+      "date",
+    ])?.textContent?.trim();
+    const rawSummary = firstDescendant(entry, [
+      "summary",
+      "description",
+      "content",
+      "encoded",
+    ])?.textContent?.trim();
     return [
       `## ${index + 1}. ${title}`,
       date ? `Date: ${date}` : undefined,
