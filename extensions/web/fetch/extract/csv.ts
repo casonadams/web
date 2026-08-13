@@ -2,44 +2,66 @@ const MAX_ROWS = 50;
 const MAX_COLS = 20;
 const MAX_CELL_CHARS = 200;
 
+interface ParserState {
+  rows: string[][];
+  row: string[];
+  field: string;
+  inQuotes: boolean;
+}
+
+function appendUnquoted(
+  state: ParserState,
+  char: string,
+  delimiter: string,
+): boolean {
+  if (char === '"') {
+    state.inQuotes = true;
+  } else if (char === delimiter) {
+    state.row.push(state.field);
+    state.field = "";
+  } else if (char === "\n" || char === "\r") {
+    state.row.push(state.field);
+    state.rows.push(state.row);
+    state.row = [];
+    state.field = "";
+    return char === "\r";
+  } else {
+    state.field += char;
+  }
+  return false;
+}
+
+function appendQuoted(state: ParserState, char: string, next: string): boolean {
+  if (char !== '"') {
+    state.field += char;
+    return false;
+  }
+  if (next === '"') {
+    state.field += '"';
+    return true;
+  }
+  state.inQuotes = false;
+  return false;
+}
+
 function parseDelimited(text: string, delimiter: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
+  const state: ParserState = {
+    rows: [],
+    row: [],
+    field: "",
+    inQuotes: false,
+  };
   for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i += 1;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += char;
-      }
-    } else if (char === '"') {
-      inQuotes = true;
-    } else if (char === delimiter) {
-      row.push(field);
-      field = "";
-    } else if (char === "\n" || char === "\r") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-      if (char === "\r" && text[i + 1] === "\n") i += 1;
-    } else {
-      field += char;
-    }
+    const skipNext = state.inQuotes
+      ? appendQuoted(state, text[i], text[i + 1])
+      : appendUnquoted(state, text[i], delimiter) && text[i + 1] === "\n";
+    if (skipNext) i += 1;
   }
-  if (field !== "" || row.length > 0) {
-    row.push(field);
-    rows.push(row);
+  if (state.field !== "" || state.row.length > 0) {
+    state.row.push(state.field);
+    state.rows.push(state.row);
   }
-  return rows;
+  return state.rows;
 }
 
 function truncate(value: string, max: number): string {

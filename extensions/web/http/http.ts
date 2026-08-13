@@ -63,6 +63,39 @@ function redirectOptions(
   return { ...options, method: "GET", body: undefined, headers };
 }
 
+function sendRequest(url: URL, options: RequestOptions): Promise<Response> {
+  return fetch(url, {
+    method: options.method,
+    body: options.body,
+    redirect: "manual",
+    signal: requestSignal(options.timeoutSec, options.signal),
+    dispatcher: options.dispatcher,
+    headers: {
+      accept:
+        "text/html,application/xhtml+xml,application/pdf,application/json,text/plain;q=0.9,*/*;q=0.1",
+      "accept-language": "en-US,en;q=0.8",
+      "user-agent": USER_AGENT,
+      ...options.headers,
+    },
+  });
+}
+
+function handleRequestError(
+  error: unknown,
+  attempt: number,
+  retries: number,
+  options: RequestOptions,
+): void {
+  if (error instanceof Error && error.name === "TimeoutError") {
+    if (attempt >= retries) {
+      throw new Error(`request timed out after ${options.timeoutSec}s`);
+    }
+    return;
+  }
+  if (options.signal?.aborted) throw error;
+  if (attempt >= retries) throw networkError(error);
+}
+
 async function fetchWithRetries(
   url: URL,
   options: RequestOptions,
@@ -71,33 +104,13 @@ async function fetchWithRetries(
   for (let attempt = 0; ; attempt += 1) {
     let response: Response | undefined;
     try {
-      response = await fetch(url, {
-        method: options.method,
-        body: options.body,
-        redirect: "manual",
-        signal: requestSignal(options.timeoutSec, options.signal),
-        dispatcher: options.dispatcher,
-        headers: {
-          accept:
-            "text/html,application/xhtml+xml,application/pdf,application/json,text/plain;q=0.9,*/*;q=0.1",
-          "accept-language": "en-US,en;q=0.8",
-          "user-agent": USER_AGENT,
-          ...options.headers,
-        },
-      });
+      response = await sendRequest(url, options);
       if (!isRetryableStatus(response.status) || attempt >= retries) {
         return response;
       }
       await response.body?.cancel();
     } catch (error) {
-      if (error instanceof Error && error.name === "TimeoutError") {
-        if (attempt >= retries) {
-          throw new Error(`request timed out after ${options.timeoutSec}s`);
-        }
-      } else {
-        if (options.signal?.aborted) throw error;
-        if (attempt >= retries) throw networkError(error);
-      }
+      handleRequestError(error, attempt, retries, options);
     }
     await delay(retryDelay(response, attempt), undefined, {
       signal: options.signal,

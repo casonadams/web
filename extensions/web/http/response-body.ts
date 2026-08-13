@@ -30,6 +30,35 @@ function responseLimit(
   return pdf && options.pdfMaxBytes ? options.pdfMaxBytes : options.maxBytes;
 }
 
+function limitError(
+  declaredLength: number | undefined,
+  size: number,
+  limit: number,
+): Error | undefined {
+  if (
+    declaredLength !== undefined &&
+    Number.isFinite(declaredLength) &&
+    declaredLength > limit
+  ) {
+    return new Error(
+      `response is too large (${declaredLength} bytes; limit is ${limit})`,
+    );
+  }
+  return size > limit
+    ? new Error(`response exceeded the ${limit}-byte limit`)
+    : undefined;
+}
+
+function joinChunks(chunks: Uint8Array[], size: number): Uint8Array {
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 export async function readLimitedBody(
   response: Response,
   contentType: string,
@@ -50,20 +79,13 @@ export async function readLimitedBody(
       chunks.push(value);
       size += value.byteLength;
       limit = responseLimit(contentType, chunks, options);
-      if (
-        limit !== undefined &&
-        declaredLength !== undefined &&
-        Number.isFinite(declaredLength) &&
-        declaredLength > limit
-      ) {
+      const error =
+        limit === undefined
+          ? undefined
+          : limitError(declaredLength, size, limit);
+      if (error) {
         await reader.cancel();
-        throw new Error(
-          `response is too large (${declaredLength} bytes; limit is ${limit})`,
-        );
-      }
-      if (limit !== undefined && size > limit) {
-        await reader.cancel();
-        throw new Error(`response exceeded the ${limit}-byte limit`);
+        throw error;
       }
     }
   } finally {
@@ -71,24 +93,7 @@ export async function readLimitedBody(
   }
 
   limit ??= options.maxBytes;
-  if (
-    declaredLength !== undefined &&
-    Number.isFinite(declaredLength) &&
-    declaredLength > limit
-  ) {
-    throw new Error(
-      `response is too large (${declaredLength} bytes; limit is ${limit})`,
-    );
-  }
-  if (size > limit) {
-    throw new Error(`response exceeded the ${limit}-byte limit`);
-  }
-
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
+  const error = limitError(declaredLength, size, limit);
+  if (error) throw error;
+  return joinChunks(chunks, size);
 }

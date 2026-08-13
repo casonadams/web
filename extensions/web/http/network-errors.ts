@@ -7,9 +7,7 @@ interface ErrorDetails {
   errors?: unknown;
 }
 
-function collectNetworkDetails(error: unknown, output: string[]): void {
-  if (!error || typeof error !== "object" || output.length >= 4) return;
-  const details = error as ErrorDetails;
+function errorSummary(details: ErrorDetails): string | undefined {
   const code = typeof details.code === "string" ? details.code : undefined;
   const message =
     typeof details.message === "string" ? details.message : undefined;
@@ -20,13 +18,18 @@ function collectNetworkDetails(error: unknown, output: string[]): void {
       ? String(details.port)
       : undefined;
   const location = address ? ` at ${address}${port ? `:${port}` : ""}` : "";
-  const summary = code ? `${code}${location}` : message;
+  return code ? `${code}${location}` : message;
+}
+
+function collectNetworkDetails(error: unknown, output: string[]): void {
+  if (!error || typeof error !== "object" || output.length >= 4) return;
+  const details = error as ErrorDetails;
+  const summary = errorSummary(details);
   if (summary && summary !== "fetch failed" && !output.includes(summary)) {
     output.push(summary);
   }
-  if (Array.isArray(details.errors)) {
-    for (const nested of details.errors) collectNetworkDetails(nested, output);
-  }
+  const nestedErrors = Array.isArray(details.errors) ? details.errors : [];
+  for (const nested of nestedErrors) collectNetworkDetails(nested, output);
   collectNetworkDetails(details.cause, output);
 }
 

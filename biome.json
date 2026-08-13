@@ -19,6 +19,13 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "error",
+        "useMaxParams": {
+          "level": "error",
+          "options": { "max": 5 }
+        }
+      },
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error"

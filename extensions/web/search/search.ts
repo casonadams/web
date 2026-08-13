@@ -71,6 +71,95 @@ function searchKey(query: string, limit: number): string {
   return `${limit}:${query}`;
 }
 
+interface AttemptContext {
+  query: string;
+  limit: number;
+  signal: AbortSignal | undefined;
+  operationSignal: AbortSignal;
+  timeoutMessage: string;
+}
+
+interface AttemptState {
+  errors: string[];
+  engines: string[];
+  results: SearchResult[];
+}
+
+function handleSearchTimeout(
+  context: AttemptContext,
+  state: AttemptState,
+): void {
+  if (state.results.length === 0) throw new Error(context.timeoutMessage);
+  state.errors.push(context.timeoutMessage);
+}
+
+async function waitBeforeRetry(
+  error: unknown,
+  context: AttemptContext,
+): Promise<void> {
+  const backoff = retryAfterMs(error) ?? config.searchBackoffMs;
+  if (backoff <= 0) return;
+  try {
+    await delay(backoff, undefined, { signal: context.operationSignal });
+  } catch (delayError) {
+    if (!context.operationSignal.aborted) throw delayError;
+  }
+}
+
+async function recoverAttempt(
+  error: unknown,
+  engine: string,
+  hasAnotherAttempt: boolean,
+  context: AttemptContext,
+  state: AttemptState,
+): Promise<boolean> {
+  if (context.signal?.aborted) throw context.signal.reason;
+  if (context.operationSignal.aborted) {
+    handleSearchTimeout(context, state);
+    return false;
+  }
+  state.errors.push(
+    `${engine}: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  if (hasAnotherAttempt && state.results.length < context.limit) {
+    await waitBeforeRetry(error, context);
+  }
+  return true;
+}
+
+async function runSearchAttempt(
+  attempt: SearchAttempt,
+  hasAnotherAttempt: boolean,
+  context: AttemptContext,
+  state: AttemptState,
+): Promise<boolean> {
+  const [engine, search] = attempt;
+  try {
+    const attemptSignal = requestSignal(
+      config.searchTimeout,
+      context.operationSignal,
+    );
+    const incoming = filterResultsForQuery(
+      normalizeResults(await search(attemptSignal), engine),
+      context.query,
+    );
+    if (incoming.length === 0) {
+      state.errors.push(`${engine}: no results`);
+      return true;
+    }
+    state.engines.push(engine);
+    state.results = mergeResults(
+      state.results,
+      incoming,
+      context.query,
+      context.limit,
+    );
+    return true;
+  } catch (error) {
+    return recoverAttempt(error, engine, hasAnotherAttempt, context, state);
+  }
+}
+
 export async function searchWithAttempts(
   query: string,
   limit: number,
@@ -78,66 +167,36 @@ export async function searchWithAttempts(
   attempts: readonly SearchAttempt[],
 ): Promise<SearchResponse> {
   signal?.throwIfAborted();
-  const operationSignal = requestSignal(config.searchTotalTimeout, signal);
+  const context: AttemptContext = {
+    query,
+    limit,
+    signal,
+    operationSignal: requestSignal(config.searchTotalTimeout, signal),
+    timeoutMessage: `search timed out after ${config.searchTotalTimeout}s`,
+  };
+  const state: AttemptState = { errors: [], engines: [], results: [] };
 
-  const errors: string[] = [];
-  const engines: string[] = [];
-  const timeoutMessage = `search timed out after ${config.searchTotalTimeout}s`;
-  let results: SearchResult[] = [];
-  for (let i = 0; i < attempts.length; i += 1) {
-    const [engine, search] = attempts[i];
+  for (const [index, attempt] of attempts.entries()) {
     signal?.throwIfAborted();
-    if (results.length >= limit) break;
-    if (operationSignal.aborted) {
-      if (results.length > 0) {
-        errors.push(timeoutMessage);
-        break;
-      }
-      throw new Error(timeoutMessage);
+    if (state.results.length >= limit) break;
+    if (context.operationSignal.aborted) {
+      handleSearchTimeout(context, state);
+      break;
     }
-    try {
-      const attemptSignal = requestSignal(
-        config.searchTimeout,
-        operationSignal,
-      );
-      const incoming = filterResultsForQuery(
-        normalizeResults(await search(attemptSignal), engine),
-        query,
-      );
-      if (incoming.length === 0) {
-        errors.push(`${engine}: no results`);
-        continue;
-      }
-      engines.push(engine);
-      results = mergeResults(results, incoming, query, limit);
-    } catch (error) {
-      if (signal?.aborted) throw signal.reason;
-      if (operationSignal.aborted) {
-        if (results.length > 0) {
-          errors.push(timeoutMessage);
-          break;
-        }
-        throw new Error(timeoutMessage);
-      }
-      errors.push(
-        `${engine}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      if (i < attempts.length - 1 && results.length < limit) {
-        const backoff = retryAfterMs(error) ?? config.searchBackoffMs;
-        if (backoff > 0) {
-          try {
-            await delay(backoff, undefined, { signal: operationSignal });
-          } catch (error) {
-            if (!operationSignal.aborted) throw error;
-          }
-        }
-      }
-    }
+    const shouldContinue = await runSearchAttempt(
+      attempt,
+      index < attempts.length - 1,
+      context,
+      state,
+    );
+    if (!shouldContinue) break;
   }
-  if (results.length > 0) {
-    return { engine: engines.join(" + "), results, warnings: errors };
-  }
-  throw new Error(errors.join("; "));
+  if (state.results.length === 0) throw new Error(state.errors.join("; "));
+  return {
+    engine: state.engines.join(" + "),
+    results: state.results,
+    warnings: state.errors,
+  };
 }
 
 async function doSearch(
