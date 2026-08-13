@@ -1,49 +1,40 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
 import { test } from "vitest";
 import { config } from "../config.ts";
+import { startTestServer } from "../test-helpers.mjs";
 import { fetchPage } from "./fetch.ts";
 
 config.allowPrivateNetwork = true;
 
-test("fetchPage: fetches and converts HTML without lynx", async (t) => {
-  const server = createServer((_request, response) => {
+test("fetchPage: fetches and converts HTML without lynx", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/html; charset=utf-8");
     response.end(
       "<html><body><h1>Title</h1><script>bad()</script><p>Hello <a href='/docs'>docs</a> and <a href='guide'>guide</a>.</p></body></html>",
     );
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.onTestFinished(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const page = await fetchPage(`http://127.0.0.1:${address.port}/`, 1, 200);
+  const page = await fetchPage(`${baseUrl}/`, 1, 200);
   assert.match(page.content, /TITLE/);
   assert.match(page.content, /Hello docs \[http:\/\/127\.0\.0\.1:\d+\/docs\]/);
   assert.match(page.content, /guide \[http:\/\/127\.0\.0\.1:\d+\/guide\]/);
   assert.doesNotMatch(page.content, /bad\(\)/);
 });
-test("fetchPage: extracts XHTML as HTML instead of returning markup", async (t) => {
-  const server = createServer((_request, response) => {
+test("fetchPage: extracts XHTML as HTML instead of returning markup", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "application/xhtml+xml; charset=utf-8");
     response.end(
       '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>XHTML title</h1><p>Clean content <a href="/guide">guide</a>.</p><script>bad()</script></body></html>',
     );
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.onTestFinished(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const page = await fetchPage(`http://127.0.0.1:${address.port}/page`, 1, 20);
+  const page = await fetchPage(`${baseUrl}/page`, 1, 20);
+  const port = new URL(baseUrl).port;
   assert.equal(page.extraction, "full");
   assert.match(page.content, /XHTML TITLE/);
-  assert.match(page.content, new RegExp(`${address.port}/guide`));
+  assert.match(page.content, new RegExp(`${port}/guide`));
   assert.doesNotMatch(page.content, /<html|<script|bad\(\)/);
 });
-test("fetchPage: respects HTML charset and base href", async (t) => {
-  const server = createServer((_request, response) => {
+test("fetchPage: respects HTML charset and base href", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/html; charset=windows-1252");
     response.end(
       Buffer.concat([
@@ -53,33 +44,24 @@ test("fetchPage: respects HTML charset and base href", async (t) => {
       ]),
     );
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.onTestFinished(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const page = await fetchPage(`http://127.0.0.1:${address.port}/page`, 1, 20);
+  const page = await fetchPage(`${baseUrl}/page`, 1, 20);
+  const port = new URL(baseUrl).port;
   assert.match(page.content, /café/);
   assert.match(
     page.content,
-    new RegExp(`http://127\\.0\\.0\\.1:${address.port}/assets/guide`),
+    new RegExp(`http://127\\.0\\.0\\.1:${port}/assets/guide`),
   );
 });
-test("fetchPage: auto extracts substantial main HTML content", async (t) => {
+test("fetchPage: auto extracts substantial main HTML content", async () => {
   const article =
     "Important article content with enough detail for extraction. ".repeat(12);
-  const server = createServer((_request, response) => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/html");
     response.end(
       `<html><head><title>Article title</title></head><body><nav>NOISY NAVIGATION</nav><main><h1>Article heading</h1><p>${article}</p><pre>const answer = 42;</pre></main><footer>NOISY FOOTER</footer></body></html>`,
     );
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.onTestFinished(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
-  const url = `http://127.0.0.1:${address.port}/article`;
+  const url = `${baseUrl}/article`;
 
   const automatic = await fetchPage(url, 1, 200, "auto");
   assert.equal(automatic.extraction, "main");
@@ -94,20 +76,15 @@ test("fetchPage: auto extracts substantial main HTML content", async (t) => {
   assert.match(full.content, /NOISY NAVIGATION/);
   assert.match(full.content, /NOISY FOOTER/);
 });
-test("fetchPage: reports JavaScript-only application shells", async (t) => {
-  const server = createServer((_request, response) => {
+test("fetchPage: reports JavaScript-only application shells", async () => {
+  const baseUrl = await startTestServer((_request, response) => {
     response.setHeader("content-type", "text/html");
     response.end(
       `<html><body><div id="root"></div><script>${"x".repeat(600)}</script></body></html>`,
     );
   });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  t.onTestFinished(() => server.close());
-  const address = server.address();
-  assert.notEqual(address, null);
-  assert.equal(typeof address, "object");
   await assert.rejects(
-    fetchPage(`http://127.0.0.1:${address.port}/app`, 1, 20),
+    fetchPage(`${baseUrl}/app`, 1, 20),
     /JavaScript-capable browser/,
   );
 });

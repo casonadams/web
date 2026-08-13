@@ -11,7 +11,7 @@ import type {
 } from "./fetch-types.ts";
 import { pageLines, preparedSize, prepareLines } from "./pagination.ts";
 
-export type { ExtractionKind, FetchedPage, FetchMode } from "./fetch-types.ts";
+export type { FetchedPage, FetchMode } from "./fetch-types.ts";
 
 function isPdf(bytes: Uint8Array, contentType: string): boolean {
   return (

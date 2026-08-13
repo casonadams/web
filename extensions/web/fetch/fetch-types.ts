@@ -1,6 +1,6 @@
 export type FetchMode = "auto" | "main" | "full";
 
-export type ExtractionKind =
+type ExtractionKind =
   | "main"
   | "full"
   | "pdf"
