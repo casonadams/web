@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { it } from "vitest";
-import { relaxedSearchQueries } from "./query-utils.ts";
+import {
+  buildSearchQueryWithFilters,
+  relaxedSearchQueries,
+} from "./query-utils.ts";
 
 const cases = [
   {
@@ -22,4 +25,22 @@ const cases = [
 
 it.each(cases)("relaxedSearchQueries: $name", ({ input, expected }) => {
   assert.deepEqual(relaxedSearchQueries(input), expected);
+});
+
+it("buildSearchQueryWithFilters: appends allowed and blocked domain syntax", () => {
+  assert.equal(
+    buildSearchQueryWithFilters("vitest documentation", [
+      "vitest.dev",
+      "-spam.com",
+    ]),
+    "vitest documentation site:vitest.dev -site:spam.com",
+  );
+  assert.equal(
+    buildSearchQueryWithFilters("query site:already.org", ["vitest.dev"]),
+    "query site:already.org",
+  );
+  assert.equal(
+    buildSearchQueryWithFilters("multi", ["a.com", "b.com"]),
+    "multi site:a.com OR site:b.com",
+  );
 });

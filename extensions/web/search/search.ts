@@ -3,12 +3,16 @@ import { createCoalescedOperation } from "../coalesced-operation.ts";
 import { config } from "../config.ts";
 import { requestSignal } from "../http/http.ts";
 import { shuffledEngines } from "./engines/index.ts";
+import type { SearchExecutionOptions } from "./engines/types.ts";
+import { buildSearchQueryWithFilters } from "./query-utils.ts";
 import type { SearchResult } from "./result.ts";
 import {
   filterResultsForQuery,
   mergeResults,
   normalizeResults,
 } from "./result-utils.ts";
+
+export type { SearchExecutionOptions } from "./engines/types.ts";
 
 export interface SearchResponse {
   engine: string;
@@ -20,6 +24,7 @@ type SearchFn = (
   query: string,
   limit: number,
   signal: AbortSignal | undefined,
+  options?: SearchExecutionOptions,
 ) => Promise<SearchResponse>;
 
 type SearchAttempt = readonly [
@@ -67,13 +72,20 @@ export function retryAfterMs(error: unknown): number | undefined {
     : undefined;
 }
 
-function searchKey(query: string, limit: number): string {
-  return `${limit}:${query}`;
+function searchKey(
+  query: string,
+  limit: number,
+  options?: SearchExecutionOptions,
+): string {
+  const recencyKey = options?.recency ?? "";
+  const domainsKey = options?.domains ? options.domains.join(",") : "";
+  return `${limit}:${recencyKey}:${domainsKey}:${query}`;
 }
 
 interface AttemptContext {
   query: string;
   limit: number;
+  options?: SearchExecutionOptions;
   signal: AbortSignal | undefined;
   operationSignal: AbortSignal;
   timeoutMessage: string;
@@ -142,6 +154,7 @@ async function runSearchAttempt(
     const incoming = filterResultsForQuery(
       normalizeResults(await search(attemptSignal), engine),
       context.query,
+      context.options?.domains,
     );
     if (incoming.length === 0) {
       state.errors.push(`${engine}: no results`);
@@ -153,6 +166,7 @@ async function runSearchAttempt(
       incoming,
       context.query,
       context.limit,
+      context.options?.domains,
     );
     return true;
   } catch (error) {
@@ -165,11 +179,13 @@ export async function searchWithAttempts(
   limit: number,
   signal: AbortSignal | undefined,
   attempts: readonly SearchAttempt[],
+  options?: SearchExecutionOptions,
 ): Promise<SearchResponse> {
   signal?.throwIfAborted();
   const context: AttemptContext = {
     query,
     limit,
+    options,
     signal,
     operationSignal: requestSignal(config.searchTotalTimeout, signal),
     timeoutMessage: `search timed out after ${config.searchTotalTimeout}s`,
@@ -203,26 +219,29 @@ async function doSearch(
   query: string,
   limit: number,
   signal: AbortSignal | undefined,
+  options?: SearchExecutionOptions,
 ): Promise<SearchResponse> {
+  const searchQuery = buildSearchQueryWithFilters(query, options?.domains);
   const attempts: SearchAttempt[] = shuffledEngines().map((engine) => [
     engine.name,
-    (attemptSignal) => engine.search(query, attemptSignal),
+    (attemptSignal) => engine.search(searchQuery, attemptSignal, options),
   ]);
-  return searchWithAttempts(query, limit, signal, attempts);
+  return searchWithAttempts(query, limit, signal, attempts, options);
 }
 
 export async function searchWeb(
   query: string,
   limit: number,
   signal: AbortSignal | undefined,
+  options?: SearchExecutionOptions,
   search: SearchFn = doSearch,
 ): Promise<SearchResponse> {
   return runCoalescedSearch(
-    searchKey(query, limit),
+    searchKey(query, limit, options),
     signal,
     async (sharedSignal) => {
       await throttleSearchStart(sharedSignal);
-      return search(query, limit, sharedSignal);
+      return search(query, limit, sharedSignal, options);
     },
   );
 }

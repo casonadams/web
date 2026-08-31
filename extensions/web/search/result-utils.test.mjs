@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { mergeResults, normalizeResults } from "./result-utils.ts";
+import {
+  matchesDomainFilters,
+  mergeResults,
+  normalizeDomain,
+  normalizeDomainFilters,
+  normalizeResults,
+} from "./result-utils.ts";
 
 test("normalizeResults: canonicalizes URLs and adds selection signals", () => {
   const [result] = normalizeResults(
@@ -72,5 +78,59 @@ test("mergeResults: excludes results outside site filters", () => {
       (result) => result.title,
     ),
     ["Docs"],
+  );
+});
+
+test("normalizeDomain: cleans protocols, subpaths, www, and wildcards", () => {
+  assert.equal(normalizeDomain("https://www.github.com/path"), "github.com");
+  assert.equal(normalizeDomain("http://docs.rs:443"), "docs.rs");
+  assert.equal(normalizeDomain("-www.bad-site.org/"), "bad-site.org");
+  assert.equal(normalizeDomain("invalid domain!"), null);
+  assert.equal(normalizeDomain(""), null);
+});
+
+test("normalizeDomainFilters: partitions allowed and blocked domains", () => {
+  const filters = normalizeDomainFilters([
+    "github.com",
+    "-spam.com",
+    "https://docs.rs",
+    "-https://www.bad.org/page",
+  ]);
+  assert.deepEqual(filters.allowed, ["github.com", "docs.rs"]);
+  assert.deepEqual(filters.blocked, ["spam.com", "bad.org"]);
+});
+
+test("matchesDomainFilters: correctly filters hostnames", () => {
+  const filters = normalizeDomainFilters([
+    "github.com",
+    "-blog.github.com",
+    "-spam.com",
+  ]);
+  assert.equal(matchesDomainFilters("github.com", filters), true);
+  assert.equal(
+    matchesDomainFilters("raw.githubusercontent.com", filters),
+    true,
+  );
+  assert.equal(matchesDomainFilters("blog.github.com", filters), false);
+  assert.equal(matchesDomainFilters("spam.com", filters), false);
+  assert.equal(matchesDomainFilters("other.org", filters), false);
+});
+
+test("mergeResults: applies domains parameter with allowed and blocked lists", () => {
+  const results = normalizeResults(
+    [
+      { title: "Github", abstract: "", url: "https://github.com/org/repo" },
+      { title: "Spam", abstract: "", url: "https://spam.com/article" },
+      { title: "Docs", abstract: "", url: "https://docs.rs/crate" },
+    ],
+    "test",
+  );
+  const filtered = mergeResults([], results, "query", 10, [
+    "github.com",
+    "-spam.com",
+  ]);
+  assert.deepEqual(
+    filtered.map((r) => r.title),
+    ["Github"],
   );
 });

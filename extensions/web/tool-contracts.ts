@@ -9,6 +9,9 @@ export const DEFAULT_SEARCH_LIMIT = Math.min(
   MAX_SEARCH_RESULTS,
 );
 
+export const SEARCH_RECENCY_OPTIONS = ["day", "week", "month", "year"] as const;
+export type SearchRecency = (typeof SEARCH_RECENCY_OPTIONS)[number];
+
 export const webSearchParameters = Type.Object({
   query: Type.String({ description: "Search query" }),
   limit: Type.Optional(
@@ -16,6 +19,18 @@ export const webSearchParameters = Type.Object({
       minimum: 1,
       maximum: MAX_SEARCH_RESULTS,
       description: `Maximum results to return (default ${DEFAULT_SEARCH_LIMIT})`,
+    }),
+  ),
+  recency: Type.Optional(
+    StringEnum(SEARCH_RECENCY_OPTIONS, {
+      description:
+        "Filter search results by time period: 'day', 'week', 'month', or 'year'",
+    }),
+  ),
+  domains: Type.Optional(
+    Type.Array(Type.String(), {
+      description:
+        "Limit results to specific domains (e.g. ['github.com']) or exclude domains with a leading '-' (e.g. ['-spam.com'])",
     }),
   ),
 });

@@ -34,15 +34,27 @@ export function parseDdgLiteHtml(html: string): SearchResult[] {
   return results;
 }
 
+const DDG_DF_MAP: Record<string, string> = {
+  day: "d",
+  week: "w",
+  month: "m",
+  year: "y",
+};
+
 // Endpoint contract: https://docs.searxng.org/dev/engines/online/duckduckgo.html
 export const ddgLiteEngine: SearchEngine = {
   name: "DuckDuckGo Lite",
-  search: (query, signal) =>
-    searchHtml(
+  search: (query, signal, options) => {
+    const dfParam =
+      options?.recency && DDG_DF_MAP[options.recency]
+        ? `&df=${DDG_DF_MAP[options.recency]}`
+        : "";
+    return searchHtml(
       (q) =>
-        `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}&kl=${encodeURIComponent(config.region)}`,
+        `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(q)}&kl=${encodeURIComponent(config.region)}${dfParam}`,
       parseDdgLiteHtml,
       query,
       signal,
-    ),
+    );
+  },
 };

@@ -135,8 +135,8 @@ test("searchWeb: coalesces identical concurrent queries", async () => {
     return { engine: "test", results: [], warnings: [] };
   };
   const [a, b] = await Promise.all([
-    searchWeb("same query", 1, undefined, search),
-    searchWeb("same query", 1, undefined, search),
+    searchWeb("same query", 1, undefined, undefined, search),
+    searchWeb("same query", 1, undefined, undefined, search),
   ]);
   assert.equal(calls, 1);
   assert.equal(a, b);
@@ -170,11 +170,13 @@ test("searchWeb: isolates cancellation between coalesced callers", async () => {
       "shared cancellation query",
       1,
       controller.signal,
+      undefined,
       search,
     );
     const surviving = searchWeb(
       "shared cancellation query",
       1,
+      undefined,
       undefined,
       search,
     );
@@ -193,14 +195,62 @@ test("searchWeb: isolates cancellation between coalesced callers", async () => {
 });
 
 test("searchWeb: does not coalesce queries with different limits", async () => {
-  let calls = 0;
-  const search = async () => {
-    calls += 1;
-    return { engine: "test", results: [], warnings: [] };
-  };
-  await Promise.all([
-    searchWeb("same query", 1, undefined, search),
-    searchWeb("same query", 5, undefined, search),
-  ]);
-  assert.equal(calls, 2);
+  const previousInterval = config.searchMinIntervalMs;
+  config.searchMinIntervalMs = 0;
+  try {
+    let calls = 0;
+    const search = async () => {
+      calls += 1;
+      return { engine: "test", results: [], warnings: [] };
+    };
+    await Promise.all([
+      searchWeb("same query", 1, undefined, undefined, search),
+      searchWeb("same query", 5, undefined, undefined, search),
+    ]);
+    assert.equal(calls, 2);
+  } finally {
+    config.searchMinIntervalMs = previousInterval;
+  }
+});
+
+test("searchWeb: does not coalesce queries with different recency or domains", async () => {
+  const previousInterval = config.searchMinIntervalMs;
+  config.searchMinIntervalMs = 0;
+  try {
+    let calls = 0;
+    const search = async () => {
+      calls += 1;
+      return { engine: "test", results: [], warnings: [] };
+    };
+    await Promise.all([
+      searchWeb("query", 5, undefined, { recency: "week" }, search),
+      searchWeb("query", 5, undefined, { recency: "month" }, search),
+      searchWeb("query", 5, undefined, { domains: ["github.com"] }, search),
+    ]);
+    assert.equal(calls, 3);
+  } finally {
+    config.searchMinIntervalMs = previousInterval;
+  }
+});
+
+test("searchWithAttempts: filters results against options.domains", async () => {
+  const response = await searchWithAttempts(
+    "topic",
+    5,
+    undefined,
+    [
+      [
+        "working",
+        async () => [
+          { title: "Allowed", abstract: "Good", url: "https://docs.rs/crate" },
+          { title: "Blocked", abstract: "Bad", url: "https://spam.com/page" },
+        ],
+      ],
+    ],
+    { domains: ["docs.rs", "-spam.com"] },
+  );
+  assert.deepEqual(
+    response.results.map((r) => r.title),
+    ["Allowed"],
+  );
 });

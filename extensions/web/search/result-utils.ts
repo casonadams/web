@@ -79,6 +79,60 @@ function siteDomain(query: string): string | undefined {
   }
 }
 
+export interface NormalizedDomainFilters {
+  allowed: string[];
+  blocked: string[];
+}
+
+export function normalizeDomain(value: string): string | null {
+  let input = value.trim().toLowerCase();
+  if (!input) return null;
+  if (input.startsWith("-")) input = input.slice(1).trim();
+  if (!input) return null;
+  try {
+    const parsed = input.includes("://")
+      ? new URL(input)
+      : new URL(`https://${input}`);
+    input = parsed.hostname;
+  } catch {
+    input = input.split("/")[0]?.split(":")[0] ?? "";
+  }
+  input = input.replace(/^www\./i, "").replace(/^\.+|\.+$/g, "");
+  return /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(input) ? input : null;
+}
+
+export function normalizeDomainFilters(
+  domains?: readonly string[],
+): NormalizedDomainFilters {
+  const filters: NormalizedDomainFilters = { allowed: [], blocked: [] };
+  if (!domains?.length) return filters;
+
+  for (const raw of domains) {
+    const isBlocked = raw.trim().startsWith("-");
+    const domain = normalizeDomain(raw);
+    if (!domain) continue;
+    const target = isBlocked ? filters.blocked : filters.allowed;
+    if (!target.includes(domain)) target.push(domain);
+  }
+
+  return filters;
+}
+
+export function matchesDomainFilters(
+  hostname: string | undefined,
+  filters: NormalizedDomainFilters,
+): boolean {
+  if (filters.allowed.length === 0 && filters.blocked.length === 0) return true;
+  if (!hostname) return false;
+  if (
+    filters.allowed.length > 0 &&
+    !filters.allowed.some((domain) => matchesSite(hostname, domain))
+  ) {
+    return false;
+  }
+  return !filters.blocked.some((domain) => matchesSite(hostname, domain));
+}
+
 function matchesSite(hostname: string | undefined, domain: string): boolean {
   if (!hostname) return false;
   const normalized = hostname.replace(/^www\./i, "").toLowerCase();
@@ -91,12 +145,22 @@ function matchesSite(hostname: string | undefined, domain: string): boolean {
 export function filterResultsForQuery(
   results: SearchResult[],
   query: string,
+  domains?: readonly string[],
 ): SearchResult[] {
   const domain = siteDomain(query);
-  if (!domain) return results;
+  const domainFilters = normalizeDomainFilters(domains);
+  if (
+    !domain &&
+    domainFilters.allowed.length === 0 &&
+    domainFilters.blocked.length === 0
+  ) {
+    return results;
+  }
   return results.filter((result) => {
     const url = canonicalUrl(result.url);
-    return url ? matchesSite(url.hostname, domain) : false;
+    if (!url) return false;
+    if (domain && !matchesSite(url.hostname, domain)) return false;
+    return matchesDomainFilters(url.hostname, domainFilters);
   });
 }
 
@@ -124,11 +188,13 @@ export function mergeResults(
   incoming: SearchResult[],
   query: string,
   limit: number,
+  domains?: readonly string[],
 ): SearchResult[] {
   const byUrl = new Map<string, SearchResult>();
   for (const result of filterResultsForQuery(
     [...current, ...incoming],
     query,
+    domains,
   )) {
     const url = canonicalUrl(result.url);
     if (!url) continue;

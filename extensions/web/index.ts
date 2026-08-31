@@ -18,6 +18,16 @@ import {
 } from "./tool-contracts.ts";
 
 export default function (pi: ExtensionAPI): void {
+  pi.on?.("before_agent_start", async (event) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const dateGuideline = `Today's date is ${today}. When searching for recent events, releases, or "latest" information, factor in this current date.`;
+    return {
+      systemPrompt: event.systemPrompt
+        ? `${event.systemPrompt}\n\n${dateGuideline}`
+        : dateGuideline,
+    };
+  });
+
   pi.registerTool({
     name: "websearch",
     label: "Web Search",
@@ -32,6 +42,10 @@ export default function (pi: ExtensionAPI): void {
         params.query,
         limit,
         signal,
+        {
+          recency: params.recency,
+          domains: params.domains,
+        },
       );
       const warning =
         results.length < limit && warnings.length > 0

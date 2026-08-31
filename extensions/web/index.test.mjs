@@ -10,6 +10,7 @@ import {
 function registeredTool(name) {
   const tools = [];
   registerWebTools({
+    on() {},
     registerTool(tool) {
       tools.push(tool);
     },
@@ -113,4 +114,31 @@ test("renderSearchResult: surfaces the error instead of 0 results", () => {
   const output = component.render(200).join("\n");
   assert.match(output, /\[error\]search failed: DuckDuckGo Lite: no results/);
   assert.doesNotMatch(output, /0 results/);
+});
+
+test("before_agent_start: appends current date to system prompt", async () => {
+  const handlers = {};
+  registerWebTools({
+    on(event, handler) {
+      handlers[event] = handler;
+    },
+    registerTool() {},
+  });
+
+  assert.ok(handlers.before_agent_start);
+  const today = new Date().toISOString().slice(0, 10);
+  const result = await handlers.before_agent_start({
+    systemPrompt: "Base prompt instructions.",
+  });
+  assert.match(result.systemPrompt, new RegExp(`Today's date is ${today}`));
+  assert.match(
+    result.systemPrompt,
+    /^Base prompt instructions\.\n\nToday's date is/,
+  );
+});
+
+test("websearch: schema includes recency and domains options", () => {
+  const search = registeredTool("websearch");
+  assert.ok(search.parameters.properties.recency);
+  assert.ok(search.parameters.properties.domains);
 });

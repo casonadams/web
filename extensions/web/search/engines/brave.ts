@@ -35,15 +35,27 @@ export function parseBraveHtml(html: string): SearchResult[] {
   return results;
 }
 
+const BRAVE_TF_MAP: Record<string, string> = {
+  day: "pd",
+  week: "pw",
+  month: "pm",
+  year: "py",
+};
+
 export const braveEngine: SearchEngine = {
   name: "Brave",
-  search: (query, signal) =>
-    searchHtml(
+  search: (query, signal, options) => {
+    const tfParam =
+      options?.recency && BRAVE_TF_MAP[options.recency]
+        ? `&tf=${BRAVE_TF_MAP[options.recency]}`
+        : "";
+    return searchHtml(
       (q) =>
-        `https://search.brave.com/search?q=${encodeURIComponent(q)}&source=web`,
+        `https://search.brave.com/search?q=${encodeURIComponent(q)}&source=web${tfParam}`,
       parseBraveHtml,
       query,
       signal,
       BRAVE_HEADERS,
-    ),
+    );
+  },
 };

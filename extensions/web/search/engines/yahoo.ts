@@ -26,13 +26,26 @@ export function parseYahooHtml(html: string): SearchResult[] {
   return results;
 }
 
+const YAHOO_AGE_MAP: Record<string, string> = {
+  day: "1d",
+  week: "1w",
+  month: "1m",
+  year: "1y",
+};
+
 export const yahooEngine: SearchEngine = {
   name: "Yahoo",
-  search: (query, signal) =>
-    searchHtml(
-      (q) => `https://search.yahoo.com/search?p=${encodeURIComponent(q)}`,
+  search: (query, signal, options) => {
+    const ageParam =
+      options?.recency && YAHOO_AGE_MAP[options.recency]
+        ? `&age=${YAHOO_AGE_MAP[options.recency]}`
+        : "";
+    return searchHtml(
+      (q) =>
+        `https://search.yahoo.com/search?p=${encodeURIComponent(q)}${ageParam}`,
       parseYahooHtml,
       query,
       signal,
-    ),
+    );
+  },
 };

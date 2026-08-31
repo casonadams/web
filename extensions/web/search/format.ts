@@ -59,11 +59,14 @@ export function formatSearchResults(
   query: string,
   results: SearchResult[],
   statusNotice?: string,
+  searchedAt?: string,
 ): string {
   const boundedQuery = truncateUtf8(query, MAX_QUERY_BYTES);
-  if (!results.length) return `No results found for: ${boundedQuery}`;
+  const dateSuffix = ` (searched on ${searchedAt ?? new Date().toISOString().slice(0, 10)})`;
+  if (!results.length)
+    return `No results found for: ${boundedQuery}${dateSuffix}`;
 
-  const header = `**Search results for:** ${boundedQuery}`;
+  const header = `**Search results for:** ${boundedQuery}${dateSuffix}`;
   const boundedStatus = statusNotice
     ? truncateUtf8(statusNotice, MAX_QUERY_BYTES)
     : undefined;
